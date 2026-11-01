@@ -208,10 +208,10 @@ const JS = String.raw`(() => {
       if (envoi) {
         const consigne = document.createElement("p");
         consigne.className = "nvs-cat";
-        consigne.innerHTML = "Appuie sur <b>Tout envoyer dans Nuvio</b> et connecte ton compte Nuvio : le catalogue, les collections et les affiches arrivent tout seuls.";
+        consigne.innerHTML = "Appuie sur <b>Envoyer ce catalogue dans Nuvio</b> et connecte ton compte Nuvio : le Catalogue FR, ses collections et ses affiches arrivent tout seuls. Les addons suivants (Lumio…) s'ajoutent à la main.";
         const zone = document.createElement("p");
         zone.className = "nvs-envoi";
-        envoi.textContent = "Tout envoyer dans Nuvio";
+        envoi.textContent = "Envoyer ce catalogue dans Nuvio";
         envoi.className = "nvs-envoyer";
         zone.appendChild(envoi);
         const option = document.createElement("p");
