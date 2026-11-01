@@ -7,6 +7,9 @@ const CSS = `
 html.nvs-on .secret, html.nvs-on #reclames, html.nvs-on #r-dots, html.nvs-on .entracte,
 html.nvs-on .hero > p:not(.tagline):not(.nvs-barre) { display: none !important; }
 html.nvs-on .act ol > li, html.nvs-on .act ul > li { margin-bottom: .45em; }
+.nvs-puces { margin: .5em 0 .2em; padding-left: 1.3em; list-style: disc; }
+.nvs-puces > li { margin: .25em 0 !important; padding: 0 !important; }
+.nvs-puces > li::before { content: none !important; }
 .nvs-barre { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: center; margin: 14px 0 0; font-size: .95rem; color: var(--dim, #b9a59c); }
 .nvs-bascule { font: inherit; font-weight: 600; color: var(--velvet, #170c12); background: var(--bulb, #ffcf6b); border: 0; border-radius: 999px; padding: 7px 16px; cursor: pointer; }
 .nvs-bascule:focus-visible, .nvs-q:focus-visible { outline: 2px solid var(--cream, #f5ead8); outline-offset: 2px; }
@@ -44,6 +47,29 @@ const JS = String.raw`(() => {
     const tag = hero.querySelector(".tagline");
     (tag || hero.lastElementChild).after(barre);
   }
+  // Addons non retenus sur cette copie (StreamFusion, Torrentio) : cartes masquées (pas supprimées, la page
+  // met encore à jour leurs champs) et mentions retirées des textes, dans les deux modes.
+  try {
+    document.querySelectorAll("article.addon").forEach((a) => {
+      const h = a.querySelector("h3");
+      if (h && /^\s*(StreamFusion|Torrentio)/i.test(h.textContent)) a.style.display = "none";
+    });
+    const MENTIONS = [
+      [/Lumio, StreamFusion, Torrentio et WAStream/g, "Lumio et WAStream"],
+      [/Lumio, StreamFusion, Torrentio, WAStream/g, "Lumio, WAStream"],
+      [/le guide la met tout seul dans le lien de Torrentio, et la garde sous la main pour les autres addons de sources/g, "le guide la garde sous la main pour les addons de sources"],
+      [/Le guide s'en sert pour préparer le lien de Torrentio et te dire quoi cocher dans les autres addons/g, "Le guide s'en sert pour te dire quoi cocher dans les addons"],
+      [/Torrentio et les autres addons donnent/g, "les addons de sources donnent"],
+    ];
+    const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n; (n = w.nextNode()); ) {
+      if (!/StreamFusion|Torrentio/.test(n.nodeValue) || n.parentElement.closest("script,style")) continue;
+      let v = n.nodeValue;
+      MENTIONS.forEach(([re, par]) => { v = v.replace(re, par); });
+      if (v !== n.nodeValue) n.nodeValue = v;
+    }
+  } catch (e) { console.warn("Mode simple du guide :", e); }
+
   if (!simple) return;
   document.documentElement.classList.add("nvs-on");
 
@@ -124,6 +150,33 @@ const JS = String.raw`(() => {
   };
 
   try {
+    // 0. Étape 3, réglages TMDB : les cases à décocher en liste à puces, chacune avec son « pourquoi ».
+    // Seulement si l'étape contient toujours les quatre réglages (sinon l'original reste tel quel).
+    document.querySelectorAll("#francais li").forEach((li) => {
+      const t = texte(li.textContent);
+      if (!/Intégrations\s*→\s*TMDB/.test(t) || !["Bandes-annonces", "Informations de base", "Détails", "Illustrations"].every((m) => t.includes(m))) return;
+      const chemin = li.querySelector(".path");
+      li.textContent = "";
+      if (chemin) li.appendChild(chemin);
+      li.appendChild(document.createTextNode(" : "));
+      const b = document.createElement("b"); b.textContent = "Langue → Français"; li.appendChild(b);
+      li.appendChild(document.createTextNode(", puis désactive :"));
+      const ul = document.createElement("ul");
+      ul.className = "nvs-puces";
+      [
+        ["Bandes-annonces", "Activé, Nuvio prend celles de TMDB, souvent en anglais, à la place de celles du Catalogue FR, qui sont en VF dès qu'une VF existe."],
+        ["Informations de base", "Pour voir quand arrivent les films à venir (« 📅 Dispo le 17 nov. » en tête du résumé)."],
+        ["Détails", "Pour garder « Entre deux saisons » sur les séries en pause (sinon Nuvio met « En cours »)."],
+        ["Illustrations", "Pour garder les fonds en pleine définition et les logos en français du Catalogue FR."],
+      ].forEach(([nom, pourquoi]) => {
+        const item = document.createElement("li");
+        const g = document.createElement("b"); g.textContent = nom; item.appendChild(g);
+        const q = bouton(); q._nvs.push("<p>" + pourquoi + "</p>"); item.appendChild(q);
+        ul.appendChild(item);
+      });
+      li.appendChild(ul);
+    });
+
     // 1. Paragraphes d'explication : rangés dans le « ? » du titre.
     document.querySelectorAll("section.act p, section.act small, section.act .note").forEach((p) => {
       if (!p.isConnected || p.closest(HORS) || p.parentElement.closest("p")) return;
