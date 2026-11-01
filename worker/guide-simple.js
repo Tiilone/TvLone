@@ -270,8 +270,41 @@ const JS = String.raw`(() => {
 
 export const GUIDE_SIMPLE = `<style>${CSS}</style><script>${JS}</script>`;
 
+// Étapes retirées sur cette copie : « Tout envoyer dans Nuvio » (billet de la salle 2) s'en charge.
+const ETAPES_RETIREES = ["collections", "affiches"];
+
+/**
+ * Retire des étapes avant que la page ne démarre : elles restent dans la page (cachées, hors de « section.act »)
+ * pour que ses scripts trouvent encore leurs champs, mais la bobine, le sommaire et le diplôme ne les comptent
+ * plus. Les numéros des étapes et les renvois « étape N » sont recalculés.
+ */
+function retirerEtapes(page) {
+  const retires = [];
+  for (const id of ETAPES_RETIREES) {
+    const ouv = `<section class="act" id="${id}">`;
+    const i = page.indexOf(ouv);
+    if (i < 0) continue;
+    const n = /<span class="num">(\d+)<\/span>/.exec(page.slice(i, i + 400));
+    if (n) retires.push(Number(n[1]));
+    page = page.slice(0, i) + `<section class="nvs-cache" id="${id}" hidden>` + page.slice(i + ouv.length);
+    page = page.replace(new RegExp(`<a href="#${id}">[^<]*</a>`), "");
+  }
+  if (!retires.length) return page;
+  // Ancien numéro → nouveau ; une étape retirée renvoie à la précédente encore visible.
+  const nouveau = (n) => {
+    if (retires.includes(n)) { let p = n - 1; while (retires.includes(p)) p--; return nouveau(p); }
+    return n - retires.filter((r) => r < n).length;
+  };
+  page = page.replace(/<section class="act[^"]*" id="[^"]+">\s*<header><span class="num">(\d+)<\/span>/g,
+    (m, n) => m.replace(`>${n}<`, ">" + String(nouveau(Number(n))).padStart(n.length, "0") + "<"));
+  page = page.replace(/([ée]tapes? )(\d{1,2})\b/g, (m, mot, n) => mot + nouveau(Number(n)));
+  page = page.replace('<span id="reel-total">12</span>', `<span id="reel-total">${String(12 - retires.length).padStart(2, "0")}</span>`);
+  return page;
+}
+
 /** Ajoute le mode simple à la page du guide, juste avant </body>. */
 export function avecModeSimple(page) {
+  page = retirerEtapes(page);
   const i = page.lastIndexOf("</body>");
   return i < 0 ? page + GUIDE_SIMPLE : page.slice(0, i) + GUIDE_SIMPLE + page.slice(i);
 }
