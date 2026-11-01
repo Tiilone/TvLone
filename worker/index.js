@@ -36,6 +36,7 @@ import {
 import { configurePage } from "./page.js";
 import { guidePage, NUVIO_TV_APK } from "./guide.js";
 import { avecModeSimple } from "./guide-simple.js";   // copie : mode simple du guide
+import { avecSalle2Simple } from "./salle2-simple.js";   // copie : mode d'emploi de la salle 2
 import { AFFICHES_STATIQUES, APERCU_V, apercusDe, relaisUrl } from "./reglages.js";
 import { lireReglages, ecrireReglages, dossierDe, MEMOIRES, MEMOIRES_PAYSAGE } from "./lien-affiches.js";
 import { lienPage } from "./lien.js";
@@ -2932,14 +2933,14 @@ const app = {
         ...c, pos: files.findIndex((f) => f.id === c.id),
         folders: displayOrder(c, ((files.find((f) => f.id === c.id) || {}).folders || []).map((f, i) => ({ id: f.id, title: f.title, cover: f.coverImageUrl || "", i }))),
       }));
-      const page = html(configurePage({
+      const page = html(avecSalle2Simple(configurePage({
         // Lien fixe : ni la clé Gemini ni le jeton d'alerte dans la page, que voit quiconque a le lien. La page
         // qui a la clé de modification les redemande (POST /lien-fixe/<id>/lire, voir fixe.js).
         origin: url.origin, cfg: fixedId ? { ...cfg, k: "", al: "" } : cfg, rows, discover: DEFS.discover, providers: PROVIDERS, collections: cols,
         defaults: defaults(rows, DEFS.discover), regions: REGIONS, genres: GENRES, languages: LANGUAGES,
         sorts: SORTS, seasons: SEASON_KEYS, maxCustom: MAX_CUSTOM, season: decorSaison(url, today), copy: isCopy(url),
         fixed: fixedId, fixedOk: fixedAvailable(env), apercus: apercusDe(env, url.origin),
-      }));
+      })));
       // Lien fixe : ses réglages changent sans que l'adresse change, la page n'est jamais resservie d'un cache.
       if (fixedId) page.headers.set("Cache-Control", "no-store");
       return page;

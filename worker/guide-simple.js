@@ -250,6 +250,8 @@ const JS = String.raw`(() => {
     // 1. Paragraphes d'explication : rangés dans le « ? » du titre.
     document.querySelectorAll("section.act p, section.act small, section.act .note").forEach((p) => {
       if (!p.isConnected || p.closest(HORS) || p.parentElement.closest("p")) return;
+      // Rien à piocher dans ce qui est masqué sur cette copie (volets « Avec Claude », étapes retirées, addons retirés).
+      if (p.closest('[data-pane="claude"], .nvs-cache, article[style*="none"]')) return;
       if (p.matches(".warn,.consigne,.tagline,[class*=\"nvs-\"]") || p.hasAttribute("id")) return;   // nvs- : ajouts de ce mode, jamais rangés
       if ([...p.attributes].some((a) => a.name.startsWith("data-"))) return;
       if (estAction(p) || imperatif(p.textContent)) return;
