@@ -351,9 +351,13 @@ function retirerEtapes(page) {
   return page;
 }
 
+// Code Downloader (raccourcisseur AFTVnews) de cette copie, à la place de celui du dépôt d'origine.
+const DOWNLOADER_ORIGINE = "5486412", DOWNLOADER_COPIE = "8522294";
+
 /** Ajoute le mode simple à la page du guide, juste avant </body>. */
 export function avecModeSimple(page) {
   page = retirerEtapes(page);
+  page = page.split(DOWNLOADER_ORIGINE).join(DOWNLOADER_COPIE);
   const i = page.lastIndexOf("</body>");
   return i < 0 ? page + GUIDE_SIMPLE : page.slice(0, i) + GUIDE_SIMPLE + page.slice(i);
 }
