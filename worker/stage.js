@@ -813,7 +813,7 @@ const CREDITS = [
   ["Dans le rôle du lecteur", "Nuvio"],
   ["Fiches, affiches et bandes-annonces", "TMDB"],
   ["Lettrage des affiches", "Inter"],
-  ["Sources", "Lumio, StreamFusion, Torrentio, WAStream"],
+  ["Sources", "Lumio, WAStream"],   // copie : sans StreamFusion ni Torrentio
   ["Sous-titres", "OpenSubtitles"],
   ["Lettrage de l'enseigne", "Bebas Neue"],
   ["Pop-corn", "Toi"],

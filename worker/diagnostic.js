@@ -19,7 +19,7 @@ const CLE = /^[A-Za-z0-9._~+/=:-]{20,200}$/;   // même forme que dans la salle 
 const HEADERS = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
 const reply = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: HEADERS });
 
-const PROMPT = `Tu aides des personnes peu à l'aise avec la technique à dépanner Nuvio, une appli qui lit des films et des séries (sur TV Android, Fire TV, téléphone ou ordinateur), installée avec le guide « Catalogue FR » : l'addon Catalogue FR (accueil, recherche, fiches en français), des addons de sources (Lumio, StreamFusion, Torrentio, WAStream) qui passent par un compte AllDebrid premium, et OpenSubtitles pour les sous-titres.
+const PROMPT = `Tu aides des personnes peu à l'aise avec la technique à dépanner Nuvio, une appli qui lit des films et des séries (sur TV Android, Fire TV, téléphone ou ordinateur), installée avec le guide « Catalogue FR » : l'addon Catalogue FR (accueil, recherche, fiches en français), des addons de sources (Lumio, WAStream) qui passent par un compte AllDebrid premium, et OpenSubtitles pour les sous-titres.
 On t'envoie la photo d'un écran, souvent une TV prise au téléphone : de travers, avec des reflets ou du flou.
 1. lisible : false si on ne peut rien lire d'utile (trop floue, trop sombre, ou ce n'est pas un écran).
 2. lu : le message ou le titre utile à l'écran, recopié tel quel (120 caractères au plus) ; vide si rien.
