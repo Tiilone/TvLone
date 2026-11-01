@@ -61,6 +61,18 @@ const JS = String.raw`(() => {
       [/Le guide s'en sert pour préparer le lien de Torrentio et te dire quoi cocher dans les autres addons/g, "Le guide s'en sert pour te dire quoi cocher dans les addons"],
       [/Torrentio et les autres addons donnent/g, "les addons de sources donnent"],
     ];
+    // Seul AllDebrid est proposé : « Real-Debrid ou TorBox marchent aussi. » disparaît.
+    document.querySelectorAll('a[href*="real-debrid.com"]').forEach((rd) => {
+      const tb = rd.parentElement && rd.parentElement.querySelector('a[href*="torbox.app"]');
+      const fin = tb && tb.nextSibling;
+      if (!fin || fin.nodeType !== 3 || !/^\s*marchent aussi\.?/.test(fin.nodeValue)) return;
+      let n = rd;
+      while (n && n !== tb) { const s = n.nextSibling; n.remove(); n = s; }
+      tb.remove();
+      fin.nodeValue = fin.nodeValue.replace(/^\s*marchent aussi\.?/, "");
+      const avant = fin.previousSibling;
+      if (avant && avant.nodeType === 3) avant.nodeValue = avant.nodeValue.replace(/\s+$/, "");
+    });
     const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n; (n = w.nextNode()); ) {
       if (!/StreamFusion|Torrentio/.test(n.nodeValue) || n.parentElement.closest("script,style")) continue;
