@@ -235,7 +235,7 @@ const JS = String.raw`(() => {
     // 1. Paragraphes d'explication : rangés dans le « ? » du titre.
     document.querySelectorAll("section.act p, section.act small, section.act .note").forEach((p) => {
       if (!p.isConnected || p.closest(HORS) || p.parentElement.closest("p")) return;
-      if (p.matches(".warn,.consigne,.tagline,.nvs-barre") || p.hasAttribute("id")) return;
+      if (p.matches(".warn,.consigne,.tagline,[class*=\"nvs-\"]") || p.hasAttribute("id")) return;   // nvs- : ajouts de ce mode, jamais rangés
       if ([...p.attributes].some((a) => a.name.startsWith("data-"))) return;
       if (estAction(p) || imperatif(p.textContent)) return;
       if (p.matches(".small") && p.nextElementSibling && p.nextElementSibling.matches(".copy")) return;
