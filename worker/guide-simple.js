@@ -87,8 +87,8 @@ const JS = String.raw`(() => {
     }
   } catch (e) { console.warn("Mode simple du guide :", e); }
 
-  if (!simple) return;
-  document.documentElement.classList.add("nvs-on");
+  // La liste à puces des réglages TMDB vaut pour les deux modes ; le reste seulement pour le mode simple.
+  if (simple) document.documentElement.classList.add("nvs-on");
 
   // Ce qui ne doit jamais bouger : éléments interactifs ou mis à jour par la page.
   const ACTION = "button,input,select,textarea,code,.copy,.path,.pick,[id],[data-copy],[hidden],[data-consigne],form,canvas,svg";
@@ -193,6 +193,8 @@ const JS = String.raw`(() => {
       });
       li.appendChild(ul);
     });
+
+    if (!simple) return;
 
     // 1. Paragraphes d'explication : rangés dans le « ? » du titre.
     document.querySelectorAll("section.act p, section.act small, section.act .note").forEach((p) => {
