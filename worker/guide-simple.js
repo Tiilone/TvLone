@@ -187,6 +187,21 @@ const JS = String.raw`(() => {
       li.appendChild(ul);
     });
 
+    // Étape 6, carte Catalogue FR : seulement « Personnaliser mon catalogue », puis « Tout envoyer dans Nuvio »
+    // sur le billet de la salle 2 (addon, collections et affiches d'un coup). Le reste est masqué, pas supprimé :
+    // la page met encore à jour le lien, la séance…
+    document.querySelectorAll("#addons article.addon").forEach((a) => {
+      const h = a.querySelector("h3");
+      const btn = a.querySelector(".perso-actions");
+      if (!h || !/^\s*Catalogue FR/.test(h.textContent) || !btn) return;
+      [...a.children].forEach((c) => { if (c !== btn && !c.matches("header")) c.style.display = "none"; });
+      const consigne = document.createElement("ol");
+      consigne.className = "nvs-cat";
+      consigne.innerHTML = "<li>Appuie sur <b>Personnaliser mon catalogue</b> et choisis tes rangées, tes plateformes et tes filtres.</li>"
+        + "<li>Sur ton billet, appuie sur <b>Tout envoyer dans Nuvio</b> : l'addon, les collections et les affiches arrivent tout seuls.</li>";
+      btn.before(consigne);
+    });
+
     if (!simple) return;
 
     // 1. Paragraphes d'explication : rangés dans le « ? » du titre.
