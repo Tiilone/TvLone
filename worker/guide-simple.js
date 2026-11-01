@@ -61,6 +61,11 @@ const JS = String.raw`(() => {
       [/Le guide s'en sert pour préparer le lien de Torrentio et te dire quoi cocher dans les autres addons/g, "Le guide s'en sert pour te dire quoi cocher dans les addons"],
       [/Torrentio et les autres addons donnent/g, "les addons de sources donnent"],
     ];
+    // Étape 2 : pas d'installation « Avec Claude », seulement à la main (sélecteur, volets et badges masqués).
+    document.querySelectorAll("#installer .modes, #installer .claude-dispo").forEach((e) => { e.style.display = "none"; });
+    document.querySelectorAll('#installer .mode-pane[data-pane="claude"]').forEach((e) => { e.hidden = true; e.style.display = "none"; });
+    document.querySelectorAll('#installer .mode-pane[data-pane="main"]').forEach((e) => { e.hidden = false; });
+
     // Seul AllDebrid est proposé : « Real-Debrid ou TorBox marchent aussi. » disparaît.
     document.querySelectorAll('a[href*="real-debrid.com"]').forEach((rd) => {
       const tb = rd.parentElement && rd.parentElement.querySelector('a[href*="torbox.app"]');
