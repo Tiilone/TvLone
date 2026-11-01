@@ -1,0 +1,197 @@
+// Mode simple du guide (ajout propre à cette copie, absent du dépôt d'origine).
+// Ajouté à la fin de la page /guide sans toucher à guide.js : ne garde à l'écran que les étapes et range
+// les explications (le « pourquoi ») dans des bulles « ? », visibles au survol ou au toucher.
+// Le bouton du haut de page rebascule sur le guide complet (choix gardé dans ce navigateur).
+
+const CSS = `
+html.nvs-on .secret, html.nvs-on #reclames, html.nvs-on #r-dots, html.nvs-on .entracte,
+html.nvs-on .hero > p:not(.tagline):not(.nvs-barre) { display: none !important; }
+html.nvs-on .act ol > li, html.nvs-on .act ul > li { margin-bottom: .45em; }
+.nvs-barre { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: center; margin: 14px 0 0; font-size: .95rem; color: var(--dim, #b9a59c); }
+.nvs-bascule { font: inherit; font-weight: 600; color: var(--velvet, #170c12); background: var(--bulb, #ffcf6b); border: 0; border-radius: 999px; padding: 7px 16px; cursor: pointer; }
+.nvs-bascule:focus-visible, .nvs-q:focus-visible { outline: 2px solid var(--cream, #f5ead8); outline-offset: 2px; }
+.nvs-q { display: inline-grid; place-items: center; width: 1.35em; height: 1.35em; margin-left: .4em; padding: 0; vertical-align: .1em;
+  font: 700 .8rem/1 var(--body, system-ui, sans-serif); color: var(--bulb, #ffcf6b); background: transparent;
+  border: 1.5px solid currentColor; border-radius: 50%; cursor: help; opacity: .8; }
+.nvs-q:hover, .nvs-q[aria-expanded="true"] { opacity: 1; background: rgba(255, 207, 107, .15); }
+h2 .nvs-q, h3 .nvs-q { font-size: .75rem; vertical-align: .35em; }
+.nvs-bulle { position: fixed; z-index: 96; max-width: min(360px, calc(100vw - 32px)); padding: 12px 14px; border-radius: 10px;
+  background: var(--seat, #3d2230); color: var(--cream, #f5ead8); border: 1px solid rgba(255, 207, 107, .45);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .5); font: 400 .9rem/1.45 var(--body, system-ui, sans-serif); text-align: left; }
+.nvs-bulle[hidden] { display: none; }
+.nvs-bulle p { margin: 0 0 .5em; } .nvs-bulle p:last-child { margin-bottom: 0; }
+.nvs-bulle a { color: var(--bulb, #ffcf6b); }
+`;
+
+const JS = String.raw`(() => {
+  const CLE = "nvs-mode";
+  let mode = "simple";
+  try { mode = localStorage.getItem(CLE) || "simple"; } catch (e) {}
+  const simple = mode !== "complet";
+
+  // Bouton de bascule, sous le titre.
+  const hero = document.querySelector(".hero");
+  if (hero) {
+    const barre = document.createElement("p");
+    barre.className = "nvs-barre";
+    barre.innerHTML = simple
+      ? '<span>Mode simple : juste les étapes. Survole ou touche un <b>?</b> pour le pourquoi.</span><button type="button" class="nvs-bascule">Afficher le guide complet</button>'
+      : '<span>Guide complet, avec toutes les explications.</span><button type="button" class="nvs-bascule">Revenir au mode simple</button>';
+    barre.querySelector("button").addEventListener("click", () => {
+      try { localStorage.setItem(CLE, simple ? "complet" : "simple"); } catch (e) {}
+      location.reload();
+    });
+    const tag = hero.querySelector(".tagline");
+    (tag || hero.lastElementChild).after(barre);
+  }
+  if (!simple) return;
+  document.documentElement.classList.add("nvs-on");
+
+  // Ce qui ne doit jamais bouger : éléments interactifs ou mis à jour par la page.
+  const ACTION = "button,input,select,textarea,code,.copy,.path,.pick,[id],[data-copy],[hidden],[data-consigne],form,canvas,svg";
+  const HORS = "li,details,summary,header,.nv,.pupitre,.photo-diag,.trousseau,.reclames,.entracte,.copy,.cle-ad,.modes,.salle2,.qr-modal,.nvs-bulle,.addon-perso,.seance";
+  const VERBES = /^(?:puis |ensuite |enfin )?(?:[^,:.]{1,45}, )?(?:puis |ensuite )?(ouvre|choisis|copie|colle|active|désactive|appuie|tape|installe|va|mets|règle|clique|coche|décoche|vérifie|exclus|scanne|note|autorise|accepte|garde|laisse|fais|déplace|supprime|retire|remets|ajoute|sélectionne|prends|passe|crée|confirme|renseigne|maintiens|dicte|lance|relance|force|regarde|réinstalle|entre|saisis|valide|connecte|associe|télécharge|glisse|double-clic|réponds|envoie|suis|recopie|limite|baisse|évite|utilise|cherche|ferme|redémarre|reviens|attends|change|mets-la|colle-la|copie-la|active-le|ouvre-la|ouvre-le)\b/i;
+
+  const estAction = (el) => el.matches(ACTION) || !!el.querySelector(ACTION);
+  const texte = (s) => (s || "").replace(/\s+/g, " ").trim();
+  const imperatif = (s) => VERBES.test(texte(s));
+
+  // Bulle partagée.
+  const bulle = document.createElement("div");
+  bulle.className = "nvs-bulle"; bulle.setAttribute("role", "tooltip"); bulle.id = "nvs-bulle"; bulle.hidden = true;
+  document.body.appendChild(bulle);
+  let ouvert = null, epingle = false;
+  const placer = (btn) => {
+    const r = btn.getBoundingClientRect();
+    bulle.style.left = "0px"; bulle.style.top = "0px";
+    const b = bulle.getBoundingClientRect();
+    let x = r.left + r.width / 2 - b.width / 2;
+    x = Math.max(16, Math.min(x, innerWidth - b.width - 16));
+    let y = r.bottom + 8;
+    if (y + b.height > innerHeight - 8 && r.top - b.height - 8 > 8) y = r.top - b.height - 8;
+    bulle.style.left = x + "px"; bulle.style.top = y + "px";
+  };
+  const montrer = (btn) => {
+    if (ouvert && ouvert !== btn) ouvert.setAttribute("aria-expanded", "false");
+    ouvert = btn; btn.setAttribute("aria-expanded", "true");
+    bulle.innerHTML = btn._nvs.join("");
+    bulle.hidden = false; placer(btn);
+  };
+  const cacher = () => {
+    if (ouvert) ouvert.setAttribute("aria-expanded", "false");
+    ouvert = null; epingle = false; bulle.hidden = true;
+  };
+  bulle.addEventListener("mouseenter", () => { clearTimeout(bulle._t); });
+  bulle.addEventListener("mouseleave", () => { if (!epingle) cacher(); });
+  document.addEventListener("click", (e) => { if (ouvert && !e.target.closest(".nvs-q,.nvs-bulle")) cacher(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") cacher(); });
+  addEventListener("scroll", () => { if (ouvert) placer(ouvert); }, { passive: true });
+  addEventListener("resize", () => { if (ouvert) placer(ouvert); });
+
+  const bouton = () => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "nvs-q"; b.textContent = "?";
+    b.setAttribute("aria-label", "Pourquoi ?"); b.setAttribute("aria-expanded", "false"); b.setAttribute("aria-describedby", "nvs-bulle");
+    b._nvs = [];
+    b.addEventListener("mouseenter", () => { if (!epingle) montrer(b); });
+    b.addEventListener("mouseleave", () => { if (!epingle) bulle._t = setTimeout(() => { if (!epingle && !bulle.matches(":hover")) cacher(); }, 150); });
+    b.addEventListener("focus", () => { if (!epingle) montrer(b); });
+    b.addEventListener("click", (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (ouvert === b && epingle) cacher(); else { montrer(b); epingle = true; }
+    });
+    return b;
+  };
+  const ajouter = (cible, html) => {
+    let b = cible.querySelector(":scope > .nvs-q");
+    if (!b) { b = bouton(); cible.appendChild(b); }
+    b._nvs.push(html);
+  };
+
+  // Titre auquel rattacher une explication : le titre précédent le plus proche, sinon celui de la carte ou de l'étape.
+  const titreDe = (el) => {
+    let n = el;
+    while (n && !n.matches("section.act")) {
+      let s = n.previousElementSibling;
+      while (s) {
+        if (s.matches("h2,h3,h4")) return s;
+        if (s.matches("header")) { const h = s.querySelector("h2,h3,h4"); if (h) return h; }
+        s = s.previousElementSibling;
+      }
+      n = n.parentElement;
+    }
+    return n ? n.querySelector("header h2") : null;
+  };
+
+  try {
+    // 1. Paragraphes d'explication : rangés dans le « ? » du titre.
+    document.querySelectorAll("section.act p, section.act small, section.act .note").forEach((p) => {
+      if (!p.isConnected || p.closest(HORS) || p.parentElement.closest("p")) return;
+      if (p.matches(".warn,.consigne,.tagline,.nvs-barre") || p.hasAttribute("id")) return;
+      if ([...p.attributes].some((a) => a.name.startsWith("data-"))) return;
+      if (estAction(p) || imperatif(p.textContent)) return;
+      if (p.matches(".small") && p.nextElementSibling && p.nextElementSibling.matches(".copy")) return;
+      if (texte(p.textContent).length < 25) return;
+      const h = titreDe(p);
+      if (!h) return;
+      ajouter(h, "<p>" + p.innerHTML + "</p>");
+      p.remove();
+    });
+
+    // 2. Dans chaque étape numérotée : on garde la consigne, les phrases d'explication passent dans un « ? ».
+    const COUPE = /([.!?…])\s+(?=[A-ZÀÂÉÈÊÎÔÛÇ«(])/;
+    document.querySelectorAll("section.act li").forEach((li) => {
+      if (li.closest("details,.nv,.pupitre,.photo-diag,.trousseau,.reclames,.modes")) return;
+      if (li.querySelector("button,input,select,textarea,code,.copy,[id],[data-copy],[hidden],ol,ul")) return;
+      // Découpe en phrases sans casser les éléments (liens, gras, chemins).
+      const phrases = [[]];
+      [...li.childNodes].forEach((n) => {
+        if (n.nodeType !== 3) { phrases[phrases.length - 1].push(n); return; }
+        let reste = n.textContent, m;
+        while ((m = COUPE.exec(reste))) {
+          const fin = m.index + m[1].length;
+          phrases[phrases.length - 1].push(document.createTextNode(reste.slice(0, fin)));
+          phrases.push([]);
+          reste = reste.slice(fin).replace(/^\s+/, "");
+        }
+        if (reste) phrases[phrases.length - 1].push(document.createTextNode(reste));
+      });
+      if (phrases.length < 2) return;
+      const garde = [], range = [];
+      phrases.forEach((ph, i) => {
+        const tmp = document.createElement("span");
+        ph.forEach((n) => tmp.appendChild(n.nodeType === 3 ? n : n.cloneNode(true)));
+        const t = texte(tmp.textContent);
+        if (!t) return;
+        const action = i === 0 || imperatif(t) || !!tmp.querySelector(".path,a,.pick");
+        (action ? garde : range).push(ph);
+      });
+      // « Fais ceci : parce que… » : la justification après les deux-points part aussi dans la bulle.
+      const RAISON = /\s:\s+((?:sinon|sans |activé|désactivé|il |elle |ils |elles |ça |c'est |le guide |nuvio |on |pas besoin )[\s\S]+)$/i;
+      garde.forEach((ph) => {
+        const der = ph[ph.length - 1];
+        if (!der || der.nodeType !== 3) return;
+        const m = RAISON.exec(der.textContent);
+        if (!m) return;
+        der.textContent = der.textContent.slice(0, m.index) + ".";
+        const r = m[1].charAt(0).toUpperCase() + m[1].slice(1);
+        range.unshift([document.createTextNode(r)]);
+      });
+      if (!range.length) return;
+      li.textContent = "";
+      garde.forEach((ph, i) => { if (i) li.appendChild(document.createTextNode(" ")); ph.forEach((n) => li.appendChild(n)); });
+      const b = bouton(); li.appendChild(b);
+      range.forEach((ph) => { const s = document.createElement("span"); ph.forEach((n) => s.appendChild(n)); b._nvs.push("<p>" + s.innerHTML + "</p>"); });
+    });
+  } catch (e) {
+    console.warn("Mode simple du guide :", e);
+  }
+})();`;
+
+export const GUIDE_SIMPLE = `<style>${CSS}</style><script>${JS}</script>`;
+
+/** Ajoute le mode simple à la page du guide, juste avant </body>. */
+export function avecModeSimple(page) {
+  const i = page.lastIndexOf("</body>");
+  return i < 0 ? page + GUIDE_SIMPLE : page.slice(0, i) + GUIDE_SIMPLE + page.slice(i);
+}
