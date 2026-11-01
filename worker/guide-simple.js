@@ -1,7 +1,7 @@
 // Mode simple du guide (ajout propre à cette copie, absent du dépôt d'origine).
 // Ajouté à la fin de la page /guide sans toucher à guide.js : ne garde à l'écran que les étapes et range
 // les explications (le « pourquoi ») dans des bulles « ? », visibles au survol ou au toucher.
-// Le bouton du haut de page rebascule sur le guide complet (choix gardé dans ce navigateur).
+// Seul ce mode est proposé : le guide complet n'est plus accessible.
 
 const CSS = `
 html.nvs-on .secret, html.nvs-on #reclames, html.nvs-on #r-dots, html.nvs-on .entracte,
@@ -27,23 +27,16 @@ h2 .nvs-q, h3 .nvs-q { font-size: .75rem; vertical-align: .35em; }
 `;
 
 const JS = String.raw`(() => {
-  const CLE = "nvs-mode";
-  let mode = "simple";
-  try { mode = localStorage.getItem(CLE) || "simple"; } catch (e) {}
-  const simple = mode !== "complet";
+  // Le mode simple est le seul proposé : plus de bascule vers le guide complet (ancien choix oublié).
+  const simple = true;
+  try { localStorage.removeItem("nvs-mode"); } catch (e) {}
 
-  // Bouton de bascule, sous le titre.
+  // Rappel sous le titre.
   const hero = document.querySelector(".hero");
   if (hero) {
     const barre = document.createElement("p");
     barre.className = "nvs-barre";
-    barre.innerHTML = simple
-      ? '<span>Mode simple : juste les étapes. Survole ou touche un <b>?</b> pour le pourquoi.</span><button type="button" class="nvs-bascule">Afficher le guide complet</button>'
-      : '<span>Guide complet, avec toutes les explications.</span><button type="button" class="nvs-bascule">Revenir au mode simple</button>';
-    barre.querySelector("button").addEventListener("click", () => {
-      try { localStorage.setItem(CLE, simple ? "complet" : "simple"); } catch (e) {}
-      location.reload();
-    });
+    barre.innerHTML = '<span>Survole ou touche un <b>?</b> pour savoir pourquoi.</span>';
     const tag = hero.querySelector(".tagline");
     (tag || hero.lastElementChild).after(barre);
   }
