@@ -7,6 +7,13 @@ const CSS = `
 html.nvs-on .secret, html.nvs-on #reclames, html.nvs-on #r-dots, html.nvs-on .entracte,
 html.nvs-on .hero > p:not(.tagline):not(.nvs-barre) { display: none !important; }
 html.nvs-on .act ol > li, html.nvs-on .act ul > li { margin-bottom: .45em; }
+.nvs-envoi { margin: 14px 0 10px; }
+.nvs-envoyer { display: inline-block; padding: 12px 26px; border-radius: 999px; background: var(--bulb, #ffcf6b); color: var(--ink, #2a1a14) !important;
+  font-weight: 800; font-size: 1.05rem; text-decoration: none !important; box-shadow: 0 6px 18px rgba(255, 207, 107, .25); }
+.nvs-envoyer:hover { filter: brightness(1.06); }
+.nvs-envoyer:focus-visible, .nvs-secondaire:focus-visible { outline: 2px solid var(--cream, #f5ead8); outline-offset: 3px; }
+.nvs-option { font-size: .92rem; color: var(--dim, #b9a59c); }
+.nvs-option .nvs-secondaire { all: unset; cursor: pointer; color: var(--bulb, #ffcf6b); text-decoration: underline; text-underline-offset: 3px; font-weight: 600; }
 .nvs-puces { margin: .5em 0 .2em; padding-left: 1.3em; list-style: disc; }
 .nvs-puces > li { margin: .25em 0 !important; padding: 0 !important; }
 .nvs-puces > li::before { content: none !important; }
@@ -195,11 +202,32 @@ const JS = String.raw`(() => {
       const btn = a.querySelector(".perso-actions");
       if (!h || !/^\s*Catalogue FR/.test(h.textContent) || !btn) return;
       [...a.children].forEach((c) => { if (c !== btn && !c.matches("header")) c.style.display = "none"; });
-      const consigne = document.createElement("ol");
-      consigne.className = "nvs-cat";
-      consigne.innerHTML = "<li>Appuie sur <b>Personnaliser mon catalogue</b> et choisis tes rangées, tes plateformes et tes filtres.</li>"
-        + "<li>Sur ton billet, appuie sur <b>Tout envoyer dans Nuvio</b> : l'addon, les collections et les affiches arrivent tout seuls.</li>";
-      btn.before(consigne);
+      // Le lien « Tout envoyer dans Nuvio » de l'étape des collections (retirée) : déplacé tel quel, la page y a
+      // déjà branché l'envoi du lien du catalogue (perso s'il a été personnalisé) et du lien des affiches.
+      const envoi = document.querySelector("a[data-compte-nuvio]");
+      if (envoi) {
+        const consigne = document.createElement("p");
+        consigne.className = "nvs-cat";
+        consigne.innerHTML = "Appuie sur <b>Tout envoyer dans Nuvio</b> et connecte ton compte Nuvio : le catalogue, les collections et les affiches arrivent tout seuls.";
+        const zone = document.createElement("p");
+        zone.className = "nvs-envoi";
+        envoi.textContent = "Tout envoyer dans Nuvio";
+        envoi.className = "nvs-envoyer";
+        zone.appendChild(envoi);
+        const option = document.createElement("p");
+        option.className = "nvs-option";
+        option.innerHTML = "<b>Facultatif</b> · choisir tes rangées, tes plateformes et tes filtres avant d'envoyer : ";
+        const perso = btn.querySelector("[data-perso-ouvrir]");
+        if (perso) { perso.textContent = "Personnalisation avancée"; perso.classList.add("nvs-secondaire"); option.appendChild(perso); }
+        btn.style.display = "none";
+        btn.before(consigne, zone, option);
+      } else {
+        const consigne = document.createElement("ol");
+        consigne.className = "nvs-cat";
+        consigne.innerHTML = "<li>Appuie sur <b>Personnaliser mon catalogue</b> et choisis tes rangées, tes plateformes et tes filtres.</li>"
+          + "<li>Sur ton billet, appuie sur <b>Tout envoyer dans Nuvio</b> : l'addon, les collections et les affiches arrivent tout seuls.</li>";
+        btn.before(consigne);
+      }
     });
 
     if (!simple) return;
