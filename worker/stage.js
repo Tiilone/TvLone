@@ -15,7 +15,7 @@
 import { sansCle } from "./liens.js";
 
 // À mettre dans <head> : rideau une fois par visite, iris d'arrivée, salle éteinte.
-export const STAGE_HEAD = `<script>try{var d=document.documentElement,s=sessionStorage;if(s.getItem("rideau"))d.classList.add("vu");s.setItem("rideau","1");if(s.getItem("iris")){d.classList.add("iris-in");s.removeItem("iris")}var n=localStorage.getItem("noir");if(n==="1"||(n===null&&location.pathname==="/"))d.classList.add("noir");var t=localStorage.getItem("theme")||"sobre";if(t!=="classique")d.dataset.theme=t;if(t==="sobre")d.classList.remove("noir")}catch(e){}var h=new Date().getHours();document.documentElement.dataset.heure=h>=23||h<6?"minuit":h<11?"matin":h<18?"jour":"soir"</script>`;
+export const STAGE_HEAD = `<script>try{var d=document.documentElement,s=sessionStorage;if(s.getItem("rideau"))d.classList.add("vu");s.setItem("rideau","1");if(s.getItem("iris")){d.classList.add("iris-in");s.removeItem("iris")}var n=localStorage.getItem("noir");if(n==="1"||(n===null&&location.pathname==="/"))d.classList.add("noir");var t=localStorage.getItem("theme");if(t&&t!=="classique")d.dataset.theme=t}catch(e){}var h=new Date().getHours();document.documentElement.dataset.heure=h>=23||h<6?"minuit":h<11?"matin":h<18?"jour":"soir"</script>`;
 
 const FOLDS = "linear-gradient(90deg, rgba(0,0,0,.5), rgba(0,0,0,.04) 20%, rgba(255,160,160,.13) 38%, rgba(0,0,0,.06) 62%, rgba(0,0,0,.42))";
 const bulbs = (c) => `
