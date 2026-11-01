@@ -7,7 +7,7 @@
 # l'addon l'envoie à /vf.json pour faire lire la VF des sources d'une liste pas encore dans le cache du service.
 # Copies auto-hébergées (voir README) : ADMIN_PASSWORD (espace hébergeur, 10 caractères au moins), DEPOT
 # (« pseudo/nuvio-assets ») et, conseillé, HOTE_SECRET (une longue suite de caractères au hasard).
-name = "nuvio-assets"
+name = "tvlone"
 main = "worker/index.js"
 compatibility_date = "2026-10-01"
 # Les appels de l'addon passent par Internet comme ceux de n'importe qui : sans cette option, Cloudflare refuse (404)
@@ -38,7 +38,7 @@ fallthrough = true
 # l'appel a son propre budget de 50 appels sortants.
 [[services]]
 binding = "SELF"
-service = "nuvio-assets"
+service = "tvlone"
 
 # Liens fixes (voir worker/fixe.js) : base D1 créée toute seule au premier déploiement, sans identifiant
 # à recopier (chaque copie a la sienne). Sans elle, le site ne propose que les liens habituels.
