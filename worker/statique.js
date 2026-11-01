@@ -6,6 +6,7 @@
  * Tout vient du worker lui-même : les copies (Cloudflare, Docker) servent les leurs, sans rien chercher ailleurs.
  */
 import { STAGE_CSS, STAGE_JS } from "./stage.js";
+import { SOBRE_CSS, SOBRE_JS } from "./theme-sobre.js";   // copie : thème Sobre
 import { APERCU_CSS, APERCU_JS } from "./apercu.js";
 import { NUVIO_CSS, NUVIO_JS, AFFICHES_JS } from "./nuvio.js";
 import { REGLAGES_CSS, REGLAGES_JS } from "./reglages.js";
@@ -23,7 +24,7 @@ import { GALERIE_CSS, GALERIE_JS } from "./galerie.js";
 // Construits au premier besoin : les pages importent ce fichier, et lui importe leurs styles et leurs scripts.
 let fichiers = null;
 const FICHIERS = () => fichiers || (fichiers = {
-  "scene.css": STAGE_CSS, "scene.js": STAGE_JS,
+  "scene.css": STAGE_CSS + SOBRE_CSS, "scene.js": STAGE_JS + SOBRE_JS,
   "nuvio.css": NUVIO_CSS, "nuvio.js": NUVIO_JS, "affiches.js": AFFICHES_JS,
   "apercu.css": APERCU_CSS, "apercu.js": APERCU_JS,
   "reglages.css": REGLAGES_CSS, "reglages.js": REGLAGES_JS,
