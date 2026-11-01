@@ -329,7 +329,11 @@ function retirerEtapes(page) {
     if (i < 0) continue;
     const n = /<span class="num">(\d+)<\/span>/.exec(page.slice(i, i + 400));
     if (n) retires.push(Number(n[1]));
-    page = page.slice(0, i) + `<section class="nvs-cache" id="${id}" hidden>` + page.slice(i + ouv.length);
+    // En <div class="act"> caché : hors de « section.act » (bobine, sommaire, diplôme), mais closest(".act")
+    // le trouve encore (guide-fin.js, boutons QR à côté de chaque « Copier »).
+    const fin = page.indexOf("</section>", i);
+    if (fin < 0) continue;
+    page = page.slice(0, i) + `<div class="act nvs-cache" id="${id}" hidden>` + page.slice(i + ouv.length, fin) + "</div>" + page.slice(fin + "</section>".length);
     page = page.replace(new RegExp(`<a href="#${id}">[^<]*</a>`), "");
   }
   if (!retires.length) return page;
