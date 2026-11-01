@@ -230,6 +230,21 @@ const JS = String.raw`(() => {
       }
     });
 
+    // Étape des réglages conseillés, version texte : le « Pourquoi » de chaque réglage passe dans un « ? »
+    // (et l'explication d'un « À adapter » aussi, l'étiquette restant visible).
+    document.querySelectorAll(".nv-texte .nvt-pourquoi, .nv-texte .nvt-adapt").forEach((tag) => {
+      const bulle = document.createElement("span");
+      let n = tag.nextSibling;
+      while (n && !(n.nodeType === 1 && n.matches("ul,ol"))) { const s = n.nextSibling; bulle.appendChild(n); n = s; }
+      if (!texte(bulle.textContent)) return;
+      const q = bouton();
+      q._nvs.push("<p>" + bulle.innerHTML.trim() + "</p>");
+      if (tag.matches(".nvt-pourquoi")) { tag.replaceWith(q); }
+      else { tag.after(q); }
+      const avant = q.previousSibling;
+      if (avant && avant.nodeType === 3) avant.nodeValue = avant.nodeValue.replace(/\s+$/, "");
+    });
+
     if (!simple) return;
 
     // 1. Paragraphes d'explication : rangés dans le « ? » du titre.
