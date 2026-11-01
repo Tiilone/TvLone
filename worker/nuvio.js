@@ -9,6 +9,7 @@
  */
 import { parametresNuvio, POSTER_URL, APERCU_V } from "./reglages.js";
 import { creerLienAffiches } from "./lien-affiches.js";
+import { AFFICHES_CODE } from "./defauts-maison.js";   // copie
 
 // La version de Nuvio TV recopiée ici, celle que le guide installe (guide.js s'en sert pour ses liens et ses
 // consignes). Quand elle change, on revérifie l'aperçu contre le code de Nuvio TV à ce tag.
@@ -469,7 +470,7 @@ const REGLAGES_AFFICHES = `  const cssUrl = (u) => "url('" + String(u).replace(/
     // Réglages de la régie (worker/lien-affiches.js), gardés sous leur forme écrite (s) ; les anciens réglages
     // de « Tes affiches » (affiches-v1 : o, r) sont convertis la première fois.
     get affiches() {
-      const s = lit("affiches-v2");
+      const s = lit("affiches-v2") ?? (lit("affiches-v1") === null ? ${JSON.stringify(AFFICHES_CODE)} : null);   // copie : style par défaut
       if (s !== null) return LA.lireReglages(new URLSearchParams(s ? "s=1." + s : ""));
       try { const a = JSON.parse(lit("affiches-v1") || "{}"); return LA.lireReglages(new URLSearchParams({ o: a.o || "", r: a.r || "" })); }
       catch (e) { return LA.lireReglages(new URLSearchParams("")); }

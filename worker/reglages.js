@@ -7,6 +7,7 @@
  */
 
 import { esc } from "./outils-serveur.js";
+import { AFFICHES_CODE } from "./defauts-maison.js";   // copie
 
 // Icônes au trait (24 × 24), dessinées en currentColor.
 const ICONS = {
@@ -128,7 +129,7 @@ export const APERCU_V = "3";
 // Le lien à coller dans Nuvio, Paramètres → Disposition → Custom Poster Source : les affiches maison en fichiers
 // statiques (Worker « affiches » de Cloudflare), style « maison » ; un autre style tout prêt a son propre dossier.
 export const AFFICHES_STATIQUES = "https://affiches.xnzxflix.workers.dev";
-export const POSTER_URL = AFFICHES_STATIQUES + "/maison/{type}/{shape}/{id}.jpg";
+export const POSTER_URL = AFFICHES_STATIQUES + "/perso/" + AFFICHES_CODE + "/{type}/{shape}/{id}.jpg";   // copie : style par défaut de worker/defauts-maison.js
 // Les réglages de la régie (salle 2) et leur écriture dans ce lien : worker/lien-affiches.js.
 
 

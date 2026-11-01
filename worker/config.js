@@ -1,3 +1,4 @@
+import { avecDefautsMaison } from "./defauts-maison.js";   // copie
 /**
  * Configuration personnalisée de l'addon.
  *
@@ -95,7 +96,9 @@ export const DEFAULT_NAME = "Catalogue FR";
 export const MAX_CUSTOM = 12;
 
 /** Réglages par défaut, construits à partir des définitions (rangées « home »). */
-export function defaults(rows, discover) {
+// Copie : réglages par défaut de cette copie (worker/defauts-maison.js) par-dessus ceux d'origine.
+export const defaults = (rows, discover) => avecDefautsMaison(defaultsOrigine(rows, discover));
+function defaultsOrigine(rows, discover) {
   return {
     n: DEFAULT_NAME,
     // Rangées affichées par défaut : « home » (ordre du fichier) et « defaultHome »,
