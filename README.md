@@ -108,6 +108,7 @@ le cache, tes choix et le secret de connexion sont gardés dans `./donnees`. Ima
 | `GEMINI_API_KEY` | facultatif | Clé Gemini de ta copie (pages `/debug`) |
 | `GEMINI_PUBLIC` | facultatif | `on` : cette clé sert aussi aux liens sans clé, et au diagnostic par photo du guide pour qui n'a pas de clé |
 | `RELAIS_KEY` | facultatif | Si tu héberges aussi le service d'affiches avec une variable `RELAIS_KEY` : la même valeur, pour que l'addon y lise la VF des sources (`/vf.json`) |
+| `TOP_10_KEY` | facultatif | Clé gratuite de la [Streaming Availability API](https://www.movieofthenight.com/about/api) : le top de chaque plateforme en France, lu une fois par jour (12 appels). Sans elle, ces rangées restent vides |
 | `DEPOT` | Cloudflare | `ton-pseudo/nuvio-assets`, pour que « Mettre à jour » mène à ton fork |
 | `ADRESSE_PUBLIQUE` | Docker | Ton adresse https derrière un tunnel ou un proxy |
 
@@ -187,8 +188,9 @@ workflow « Tests ».
 | Workflow | Quand | Ce qu'il fait |
 |---|---|---|
 | Tests | à chaque push et pull request | Les trois suites de tests |
+| Surveillance du serveur Oracle | lancée par le Worker (toutes les 5 minutes, `worker/surveillance.js`, jeton `SURVEILLANCE_GITHUB`) quand il y a à faire ; toutes les heures en secours | Serveur injoignable 3 fois de suite : catalogues et fiches repassent par le Worker (déploiement sans `_redirects`), passage en rouge ; il répond 5 fois de suite : ils y retournent. Exercice à la main : `forcer` à `couper` |
 | Mettre à jour l'addon | chaque nuit, et à chaque changement de `catalogs.json`, `scripts/update_addon.py`, `scripts/build_search_words.py` ou `scripts/build_fenetres_vod.py` | Addon statique, saison en cours, vocabulaire de recherche, fenêtres des distributeurs américains (dates « Dispo vers le ») |
-| Notes IMDb | chaque lundi, et à chaque changement de `scripts/build_imdb_ratings.py` | Refait `data/imdb-ratings.bin`, puis relance l'image Docker s'il a changé |
+| Notes IMDb | chaque soir, et à chaque changement de `scripts/build_imdb_ratings.py` | Refait `data/imdb-ratings.bin`, puis relance l'image Docker le lundi s'il a changé |
 | Générer les images des collections | à chaque changement d'`assets.json`, `scripts/make_assets.py` ou `fonts/` | Tuiles et GIF |
 | Image Docker | à chaque changement du Worker, de `catalogs.json`, `wrangler.toml`, `Dockerfile` ou `docker/`, et après de nouvelles notes IMDb | Publie `ghcr.io/xnzx07/nuvio-assets` |
 | Liste des plateformes TMDB | à la main | Refait `data/providers_fr.json` |

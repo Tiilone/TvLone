@@ -12,10 +12,11 @@
 import { titleFacts } from "../lib/tmdb.js";
 import { lireNoteImdb } from "../lib/notes.js";
 import { lireRang, secondesAvantBascule, ADDON_URL } from "../lib/tendances.js";
-import { qualityOf, avisDuJour, qualiteDeQ } from "../lib/qualite.js";
+import { qualityOf, avisDuJour, qualiteDeQ, avecAvisDoute } from "../lib/qualite.js";
 import { posterContent, contentKey } from "../lib/contenu.js";
 import { etatSortie, sourcesUtiles, dispoChezSoi, estimationDe, besoinEstimation, LIBELLES_FIN } from "../lib/statut.js";
 import { lireEstimations } from "../lib/estimations.js";
+import { lireSansVf } from "../lib/sans-vf.js";
 import { lireReglages, lireReglagesPaysage, ecrireReglages } from "../lib/lien-affiches.js";
 import { notesPlus } from "../lib/notes-plus.js";
 import { noteMal } from "../lib/mal.js";
@@ -242,6 +243,13 @@ export function makeHandler({ fetchImpl = fetch, env = process.env } = {}) {
       }
       // Le jour à Paris, le même pour tout le calcul (statut, sources utiles).
       const aujourdhui = jourParis();
+      // Vieux film (ni récent, ni à venir) en langue étrangère : peut-être dans la liste des films sans VF. Liste pas lue à
+      // temps : l'affiche habituelle, et le cache court pour la marquer ensuite.
+      if (type === "movie" && facts.imdbId && facts.originalLanguage && !["fr", "en"].includes(facts.originalLanguage) && !sourcesUtiles(facts, aujourdhui)) {
+        const { films, manque } = await chrono.mesure("sans-vf", lireSansVf(fetchImpl, ATTENTE_ESTIMATIONS_MS));
+        facts = { ...facts, sansVf: films.has(facts.imdbId) };
+        estimationManque = estimationManque || manque;
+      }
       // Les sources (lues avec la qualité) disent si le titre est en VF : lues aussi sans le badge, pour un titre récent.
       const lireSources = qualite || langue || (env.QUALITE !== "off" && sourcesUtiles(facts, aujourdhui));
       // L'avis VF du jour de l'addon (le même que ses rangées et ses fiches), pour un titre récent : seulement sur le
@@ -264,10 +272,12 @@ export function makeHandler({ fetchImpl = fetch, env = process.env } = {}) {
       // (StreamFusion).
       const qualiteLue = lireSources ? chrono.mesure("qualite", qualiteATemps(type, facts, fetchImpl, env.QUALITE_RELAIS || relais, env.RELAIS_KEY, request.headers.get("X-Apercu") === "1" ? ATTENTE_APERCU_MS : ATTENTE_QUALITE_MS, env.STREAMFUSION !== "off")) : { enRetard: false, quality: null };
       // L'avis du jour seulement si Torrentio n'est pas sûr de la VF (vff : un fichier TRUEFRENCH, VFF…) : chaque avis
-      // de l'addon peut être une demande au compte AllDebrid de la personne (Lumio, StreamFusion).
+      // de l'addon peut être une demande au compte AllDebrid de la personne (Lumio, StreamFusion). Ni s'il ne voit que de
+      // la VFQ (quebec) : Lumio et StreamFusion la prennent pour de la VF (Hope, By Any Means, le 28 octobre 2026).
       const avisLu = videoAvis ? chrono.mesure("avis", Promise.resolve(qualiteLue).then(({ quality: q }) => (q && q.vff
         ? { vf: true, sources: Math.max(1, q.sources || 0), qualite: q.vfq || null }
-        : avisDuJour(env.ADDON_URL || ADDON_URL, videoAvis, env.RELAIS_KEY, fetchImpl)))) : null;
+        : q && q.quebec ? { vf: false, sources: Math.max(1, q.sources || 0) }
+          : avisDuJour(env.ADDON_URL || ADDON_URL, videoAvis, env.RELAIS_KEY, fetchImpl)))) : null;
       const lectures = Promise.all([
         noteImdb && facts.imdbId ? chrono.mesure("imdb", lireNoteImdb(facts.imdbId, fetchImpl, ATTENTE_NOTES_MS)) : { note: undefined, manque: false },
         tendance || lireSources ? chrono.mesure("tendances", lireRang(env, type, facts.tmdbId, fetchImpl, relais).catch(() => ({ rang: null, illisible: true, vf: null, qualite: null }))) : { rang: null, illisible: false, vf: null, qualite: null },
@@ -311,8 +321,11 @@ export function makeHandler({ fetchImpl = fetch, env = process.env } = {}) {
       // L'avis du jour prime sur celui de la photo de 4 h (The Dog Stars : sans VF à 4 h, en VF dans la journée).
       // Sans VF, pas de qualité : celle de Torrentio est celle d'un fichier en VFQ ou en VO (By Any Means, « 4K DV »).
       const SANS_QUALITE = { uhd: false, extra: null, fhd: false, hdr10p: false, atmos: false };
-      const quality = avisJour ? avecAvisVf(qualiteTorrentio, avisJour.vf, avisJour.vf ? qualiteDeQ(avisJour.qualite) : SANS_QUALITE)
-        : avecAvisVf(qualiteTorrentio, photoLue.vf, photoLue.qualite);
+      // De la VFQ seulement chez Torrentio (quebec) : la photo, qui a pu la prendre pour de la VF, ne le contredit pas.
+      let quality = avisJour ? avecAvisVf(qualiteTorrentio, avisJour.vf, avisJour.vf ? qualiteDeQ(avisJour.qualite) : SANS_QUALITE)
+        : qualiteTorrentio && qualiteTorrentio.quebec ? avecAvisVf(qualiteTorrentio, false, SANS_QUALITE)
+          : avecAvisVf(qualiteTorrentio, photoLue.vf, photoLue.qualite);
+      quality = avecAvisDoute(quality);
       // Récent sans VF d'après l'avis du jour : « revoir », le serveur la redessine quelques heures plus tard.
       const aRevoir = !!avisJour && avisJour.vf === false;
       const saga = sagaVoulue ? rangSaga(filmsSaga, facts.tmdbId, aujourdhui) : null;
@@ -331,7 +344,7 @@ export function makeHandler({ fetchImpl = fetch, env = process.env } = {}) {
       const finSaison = reglages.saison.on && type === "movie" ? secondesAvantChangementSaison() : undefined;
       // Rien à poser ni à griser : l'appli va chercher l'image directement chez TMDB, sans la redessiner ici.
       const retouchee = !!(content.styles.retouche || content.styles.cadre);
-      if (!content.full && !content.rank && !content.quality && !content.statut && !content.gris && !content.bandeau && !content.coin && !content.culte && !retouchee
+      if (!content.full && !content.rank && !content.quality && !content.statut && !content.gris && !content.moitie && !content.bandeau && !content.coin && !content.culte && !retouchee
         && !content.langue && !content.avance && !content.saga && !content.saison) {
         return new Response(null, { status: 302, headers: { ...CORS, ...cacheDe({ enRetard, place, jusqua: finSaison }), "Server-Timing": chrono.entete(), Location: imageUrls(content)[0] } });
       }
