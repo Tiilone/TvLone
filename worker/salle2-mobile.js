@@ -4,7 +4,7 @@
 //   déplacements que ses flèches ↑ ↓, cachées (elle reste seule maîtresse de ses réglages). La poignée marche
 //   au doigt, à la souris, et au clavier (↑ et ↓).
 // - Les fenêtres (collections, ordre de l'accueil) et la création d'une rangée s'ouvrent en plein écran.
-// - Une barre d'onglets en bas : Écran, Rangées, Ordre, Collections, Billet (à la place de la barre du billet).
+// - Une barre d'onglets en bas : Écran, Rangées, Collections, Ordre, Billet (à la place de la barre du billet).
 // Si un repère manque (la page d'origine a changé), la partie concernée ne fait rien ; la page reste telle quelle.
 
 const CSS = String.raw`
@@ -67,8 +67,8 @@ const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 const ONGLETS = [
   ["ecran", "Écran", '<rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>'],
   ["rangees", "Rangées", '<path d="M4 6h16M4 12h16M4 18h10"/>'],
-  ["ordre", "Ordre", '<path d="M8 4v16M4 8l4-4 4 4M16 20V4M12 16l4 4 4-4"/>'],
   ["collections", "Collections", '<rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/>'],
+  ["ordre", "Ordre", '<path d="M8 4v16M4 8l4-4 4 4M16 20V4M12 16l4 4 4-4"/>'],
   ["billet", "Billet", '<path d="M3 7.5V5h18v2.5a2.5 2.5 0 0 0 0 5V15H3v-2.5a2.5 2.5 0 0 0 0-5Z" transform="translate(0 2)"/><path d="M14 7v2M14 12v2" transform="translate(0 2)"/>'],
 ];
 const BARRE = `<nav class="nvm-barre" aria-label="Raccourcis">${ONGLETS.map(([id, nom, d]) => `<button type="button" data-nvm="${id}">${svg(d)}<span>${nom}</span></button>`).join("")}</nav>`;

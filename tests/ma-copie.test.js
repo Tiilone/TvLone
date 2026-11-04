@@ -129,7 +129,8 @@ test("copie_salle_2_mode_d_emploi", async () => {
 test("copie_salle_2_au_telephone", async () => {
   const html = await page("/configure");
   assert.match(html, /<nav class="nvm-barre" aria-label="Raccourcis">/, "salle 2 : la barre d'onglets du téléphone a disparu (salle2-mobile.js)");
-  for (const o of ["ecran", "rangees", "ordre", "collections", "billet"]) assert.ok(html.includes(`data-nvm="${o}"`), `salle 2 : onglet « ${o} » absent`);
+  for (const o of ["ecran", "rangees", "collections", "ordre", "billet"]) assert.ok(html.includes(`data-nvm="${o}"`), `salle 2 : onglet « ${o} » absent`);
+  assert.deepEqual([...html.matchAll(/data-nvm="([a-z]+)"/g)].map((m) => m[1]), ["ecran", "rangees", "collections", "ordre", "billet"], "salle 2 : les onglets du bas ne sont plus dans l'ordre Écran, Rangées, Collections, Ordre, Billet");
   assert.match(html, /\.nvm-poignee/, "salle 2 : le rangement au doigt (poignées) a disparu");
   assert.match(html, /\n#rows \.arrow, \.acc-list \.arrow, \.tiles \.arrow \{ display: none; \}/, "salle 2 : les flèches haut / bas sont revenues (la poignée les remplace partout)");
   // Repères de la page d'origine dont se sert le rangement au doigt : listes, flèches, fenêtres, création de rangée.
