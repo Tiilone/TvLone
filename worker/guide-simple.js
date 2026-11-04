@@ -200,7 +200,7 @@ const JS = String.raw`(() => {
     // Seulement si l'étape contient toujours les quatre réglages (sinon l'original reste tel quel).
     document.querySelectorAll("#francais li").forEach((li) => {
       const t = texte(li.textContent);
-      if (!/Intégrations\s*→\s*TMDB/.test(t) || !["Bandes-annonces", "Informations de base", "Détails", "Illustrations"].every((m) => t.includes(m))) return;
+      if (!/Intégrations\s*→\s*TMDB/.test(t) || !["Bandes-annonces", "Informations de base", "Détails"].every((m) => t.includes(m)) || !/Illustrations|Visuels/.test(t)) return;
       const chemin = li.querySelector(".path");
       li.textContent = "";
       if (chemin) li.appendChild(chemin);
@@ -211,9 +211,9 @@ const JS = String.raw`(() => {
       ul.className = "nvs-puces";
       [
         ["Bandes-annonces", "Activé, Nuvio prend celles de TMDB, souvent en anglais, à la place de celles du Catalogue FR, qui sont en VF dès qu'une VF existe."],
+        ["Visuels", "Pour garder les fonds en pleine définition et les logos en français du Catalogue FR."],
         ["Informations de base", "Pour voir quand arrivent les films à venir (« 📅 Dispo le 17 nov. » en tête du résumé)."],
         ["Détails", "Pour garder « Entre deux saisons » sur les séries en pause (sinon Nuvio met « En cours »)."],
-        ["Illustrations", "Pour garder les fonds en pleine définition et les logos en français du Catalogue FR."],
       ].forEach(([nom, pourquoi]) => {
         const item = document.createElement("li");
         const g = document.createElement("b"); g.textContent = nom; item.appendChild(g);

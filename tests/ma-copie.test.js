@@ -84,6 +84,15 @@ test("copie_guide_sous_titres_francais_et_forces", async () => {
   assert.match(html, /Sous-titres → Langue préférée → Français, et active <b>Utiliser les sous-titres forcés<\/b>/, "carte OpenSubtitles : la consigne n'est plus « Français » + « Utiliser les sous-titres forcés »");
 });
 
+test("copie_guide_tmdb_visuels", async () => {
+  const html = await page("/guide");
+  const ordre = ["Bandes-annonces", "Visuels", "Informations de base", "Détails"].map((n) => html.indexOf(`["${n}", "`));
+  assert.ok(ordre.every((i) => i > 0) && ordre.every((i, k) => k === 0 || i > ordre[k - 1]), "étape 3, TMDB : la liste n'est plus « Bandes-annonces, Visuels, Informations de base, Détails »");
+  assert.doesNotMatch(html, /\["Illustrations", "/, "étape 3, TMDB : « Illustrations » est revenu à la place de « Visuels »");
+  assert.match(html, /<b>Visuels<\/b>/, "visite des réglages : « Visuels » absent de TMDB (reglages.js)");
+  assert.match(await page("/configure"), /désactive aussi Bandes-annonces, Visuels, Informations de base et Détails/, "salle 2 : la consigne TMDB n'est plus à jour");
+});
+
 // L'étape 6 (une carte par addon, aperçu de l'accueil, envoi dans Nuvio) est construite dans le navigateur par le
 // code de guide-simple.js : on vérifie que ce code est là et que les repères qu'il cherche existent encore.
 test("copie_guide_etape_6_reperes", async () => {
