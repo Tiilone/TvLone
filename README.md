@@ -5,10 +5,10 @@ Un addon Nuvio / Stremio en français, servi en direct depuis TMDB, avec son sit
 
 | | Adresse |
 |---|---|
-| Le site (hall, guide, personnalisation) | https://nuvio-assets.xnzxflix.workers.dev |
-| L'addon à installer dans Nuvio | `https://nuvio-assets.xnzxflix.workers.dev/manifest.json` |
+| Le site (hall, guide, personnalisation) | https://nuvio.tilone.workers.dev |
+| L'addon à installer dans Nuvio | `https://nuvio.tilone.workers.dev/manifest.json` |
 | Les affiches (Nuvio : Paramètres → Disposition → Custom Poster Source ; à régler en salle 2, « Tes affiches ») | `https://affiches-catalogue-fr.vercel.app/{type}/{shape}/{id}.jpg?imdb={imdb_id?}` |
-| Les collections (copier tout son contenu, puis dans Nuvio, onglet Collections, bouton presse-papiers en haut à droite, sur téléphone comme sur PC ; sur téléphone, le lien marche aussi par Importer → URL) | `https://nuvio-assets.xnzxflix.workers.dev/collections.json` |
+| Les collections (copier tout son contenu, puis dans Nuvio, onglet Collections, bouton presse-papiers en haut à droite, sur téléphone comme sur PC ; sur téléphone, le lien marche aussi par Importer → URL) | `https://nuvio.tilone.workers.dev/collections.json` |
 
 Le plus simple : ouvrir le site, salle 1 (le guide) si tu n'as pas encore Nuvio, salle 2 pour régler ton lien.
 
