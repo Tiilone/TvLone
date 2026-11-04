@@ -132,6 +132,8 @@ test("copie_salle_2_au_telephone", async () => {
   for (const o of ["ecran", "rangees", "collections", "ordre", "billet"]) assert.ok(html.includes(`data-nvm="${o}"`), `salle 2 : onglet « ${o} » absent`);
   assert.deepEqual([...html.matchAll(/data-nvm="([a-z]+)"/g)].map((m) => m[1]), ["ecran", "rangees", "collections", "ordre", "billet"], "salle 2 : les onglets du bas ne sont plus dans l'ordre Écran, Rangées, Collections, Ordre, Billet");
   assert.match(html, /\.nvm-poignee/, "salle 2 : le rangement au doigt (poignées) a disparu");
+  assert.match(html, /\.nvm-poignee \{[^}]*touch-action: pan-y;/, "salle 2 : la poignée bloque de nouveau le défilement de la page au doigt");
+  assert.match(html, /const APPUI = \d+;/, "salle 2 : au doigt, la rangée se soulève de nouveau sans appui maintenu");
   assert.match(html, /\n#rows \.arrow, \.acc-list \.arrow, \.tiles \.arrow \{ display: none; \}/, "salle 2 : les flèches haut / bas sont revenues (la poignée les remplace partout)");
   // Repères de la page d'origine dont se sert le rangement au doigt : listes, flèches, fenêtres, création de rangée.
   for (const r of ['id="rows"', 'id="accueil-ordre"', 'id="prov-ordre"', 'id="collections"', 'id="acc-ouvrir"', 'id="coll-ouvrir"', 'id="builder"', 'id="b-cancel"', 'id="stage"', 'id="ticket"', 'class="nav"']) assert.ok(html.includes(r), `salle 2 : repère « ${r} » absent`);

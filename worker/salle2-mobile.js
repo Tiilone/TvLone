@@ -2,21 +2,23 @@
 // - Ranger au doigt : chaque ligne qu'on peut monter ou descendre (rangées, ordre de l'accueil, plateformes,
 //   tuiles des collections) reçoit une poignée ⠿ à faire glisser. Au lâcher, la page fait les mêmes
 //   déplacements que ses flèches ↑ ↓, cachées (elle reste seule maîtresse de ses réglages). La poignée marche
-//   au doigt, à la souris, et au clavier (↑ et ↓).
+//   au doigt (après un court appui immobile, pour ne pas gêner le défilement), à la souris, et au clavier (↑ et ↓).
 // - Les fenêtres (collections, ordre de l'accueil) et la création d'une rangée s'ouvrent en plein écran.
 // - Une barre d'onglets en bas : Écran, Rangées, Collections, Ordre, Billet (à la place de la barre du billet).
 // Si un repère manque (la page d'origine a changé), la partie concernée ne fait rien ; la page reste telle quelle.
 
 const CSS = String.raw`
 .nvm-poignee { flex: none; width: 44px; height: 44px; display: inline-grid; place-items: center; padding: 0; border: 0; border-radius: 10px;
-  background: transparent; color: var(--dim); cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  background: transparent; color: var(--dim); cursor: grab; touch-action: pan-y; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .nvm-poignee:hover, .nvm-poignee:focus-visible { color: var(--cream); background: rgba(255,255,255,.07); }
 .nvm-poignee svg { width: 20px; height: 20px; pointer-events: none; }
 @media (hover: hover) and (pointer: fine) { .nvm-poignee { width: 32px; height: 32px; } }
 .acc-fleches, .tools { align-items: center; }
 .tiles li { position: relative; }
 .acc-item { position: relative; }
-.nvm-tri { -webkit-user-select: none; user-select: none; }
+.nvm-tri, li.nvm-appui { -webkit-user-select: none; user-select: none; }
+/* Appui en cours sur la poignée : elle s'allume, la ligne se soulève au bout de l'appui. */
+li.nvm-appui .nvm-poignee { color: var(--bulb); background: rgba(255,207,107,.14); transition: background .28s, color .28s; }
 .nvm-tri > li { transition: transform .2s cubic-bezier(.2,.8,.2,1); }
 .nvm-tri > li.nvm-leve { transition: none; z-index: 16; cursor: grabbing; box-shadow: 0 18px 40px rgba(0,0,0,.55); outline: 2px solid var(--bulb); outline-offset: 1px; }
 .nvm-tri > li.nvm-leve .nvm-poignee { color: var(--bulb); cursor: grabbing; }
@@ -117,9 +119,9 @@ const JS = String.raw`(() => {
   ["#rows", "#accueil-ordre", "#prov-ordre"].forEach((s) => suivre($(s)));
   // Les consignes parlent de glisser plutôt que de flèches.
   {
-    const doigt = matchMedia("(hover: none), (pointer: coarse)").matches ? " du doigt" : "";
-    [["#s-rangees .sub", /range-les avec les flèches/, "range-les en les faisant glisser" + doigt + " (⠿)"],
-     ["#acc-dialog .sub", /monte ou descends chacune/, "fais glisser chacune" + doigt + " (⠿)"]].forEach(([s, re, par]) => {
+    const doigt = matchMedia("(hover: none), (pointer: coarse)").matches;
+    [["#s-rangees .sub", /range-les avec les flèches/, doigt ? "range-les en gardant le doigt sur ⠿ puis en les faisant glisser" : "range-les en les faisant glisser (⠿)"],
+     ["#acc-dialog .sub", /monte ou descends chacune/, doigt ? "garde le doigt sur ⠿ puis fais glisser chacune" : "fais glisser chacune (⠿)"]].forEach(([s, re, par]) => {
       const p = $(s);
       if (p && re.test(p.innerHTML)) p.innerHTML = p.innerHTML.replace(re, par);
     });
@@ -145,21 +147,48 @@ const JS = String.raw`(() => {
     if (pg) pg.focus();
   });
 
+  // Au doigt, la ligne ne se soulève qu'après un appui immobile (APPUI ms) sur la poignée : un doigt qui balaie
+  // l'écran fait défiler la page, même s'il part de la poignée. À la souris, elle se soulève tout de suite.
+  const APPUI = 280;
+  let enCours = false;
+  document.addEventListener("touchmove", (ev) => { if (enCours && ev.cancelable) ev.preventDefault(); }, { passive: false });
+  document.addEventListener("contextmenu", (ev) => { if (ev.target.closest && ev.target.closest(".nvm-poignee")) ev.preventDefault(); });
   document.addEventListener("pointerdown", (e) => {
     const g = e.target.closest && e.target.closest(".nvm-poignee");
     if (!g || e.button > 0) return;
     const li = g.closest("li"), ol = li && li.parentElement;
     if (!ol) return;
+    if ([...ol.children].filter(mobile).length < 2) return;
+    if (e.pointerType !== "touch") { e.preventDefault(); souleve(e, g, li, ol, e.clientY); return; }
+    let y = e.clientY;
+    const x0 = e.clientX, y0 = e.clientY;
+    li.classList.add("nvm-appui");
+    const arrete = () => {
+      clearTimeout(minuteur); li.classList.remove("nvm-appui");
+      removeEventListener("pointermove", suit); removeEventListener("pointerup", lache); removeEventListener("pointercancel", lache);
+    };
+    const suit = (ev) => {
+      if (ev.pointerId !== e.pointerId) return;
+      y = ev.clientY;
+      if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 10) arrete();   // le doigt balaie : c'est un défilement
+    };
+    const lache = (ev) => { if (ev.pointerId === e.pointerId) arrete(); };   // levé, ou le navigateur fait défiler
+    const minuteur = setTimeout(() => { arrete(); if (li.isConnected) souleve(e, g, li, ol, y); }, APPUI);
+    addEventListener("pointermove", suit, { passive: true });
+    addEventListener("pointerup", lache); addEventListener("pointercancel", lache);
+  });
+
+  function souleve(e, g, li, ol, yDepart) {
     const items = [...ol.children].filter(mobile), de = items.indexOf(li);
     if (de < 0 || items.length < 2) return;
-    e.preventDefault();
+    enCours = true;
     try { g.setPointerCapture(e.pointerId); } catch (err) {}
     const sc = defileur(ol);
     const haut = () => (sc ? sc.scrollTop : scrollY);
     const h0 = haut();
     const pos = items.map((x) => { const r = x.getBoundingClientRect(); return { t: r.top + h0, h: r.height }; });
     const pas = pos[de].h + (items.length > 1 ? Math.max(0, de > 0 ? pos[de].t - (pos[de - 1].t + pos[de - 1].h) : pos[1].t - (pos[0].t + pos[0].h)) : 6);
-    const y0 = e.clientY;
+    const y0 = yDepart;
     let y = y0, vers = de, boucle = 0, fini = false;
     li.classList.add("nvm-leve"); ol.classList.add("nvm-tri"); document.documentElement.classList.add("nvm-glisse");
     vibre(12);
@@ -197,7 +226,7 @@ const JS = String.raw`(() => {
     const bouge = (ev) => { if (ev.pointerId !== e.pointerId) return; y = ev.clientY; dessine(); };
     const fin = (ev) => {
       if (ev.pointerId !== e.pointerId) return;
-      fini = true; cancelAnimationFrame(boucle);
+      fini = true; enCours = false; cancelAnimationFrame(boucle);
       removeEventListener("pointermove", bouge); removeEventListener("pointerup", fin); removeEventListener("pointercancel", fin);
       ol.classList.remove("nvm-tri"); li.classList.remove("nvm-leve"); document.documentElement.classList.remove("nvm-glisse");
       items.forEach((x) => { x.style.transform = ""; });
@@ -207,7 +236,7 @@ const JS = String.raw`(() => {
     addEventListener("pointermove", bouge, { passive: true });
     addEventListener("pointerup", fin);
     addEventListener("pointercancel", fin);
-  });
+  }
 
   // ---------- La barre d'onglets ----------
   const barre = document.querySelector(".nvm-barre");
