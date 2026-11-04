@@ -98,6 +98,14 @@ test("copie_gerer_depuis_le_telephone_chemin_complet", async () => {
   assert.match(await page("/configure"), /Nuvio : Contenu et découverte → Addons → <b>Gérer depuis le téléphone<\/b>/, "salle 2 (sans compte) : « Contenu et découverte → » manque avant « Addons → Gérer depuis le téléphone »");
 });
 
+test("copie_guide_etape_6_intro_sans_copier_coller", async () => {
+  const html = await page("/guide");
+  const lead = (section(html, "addons").match(/<p class="lead">([\s\S]*?)<\/p>/) || [])[1] || "";
+  assert.match(lead, /<b>Envoyer dans Nuvio<\/b> les installe tous d'un coup/, "étape 6 : l'intro ne parle plus de « Envoyer dans Nuvio »");
+  assert.doesNotMatch(lead, /Ajouter un addon/, "étape 6 : l'intro dit de nouveau de coller chaque lien dans « Addons → Ajouter un addon »");
+  assert.doesNotMatch(html, /<span class="path">Addons → /, "guide : un chemin « Addons → » sans « Contenu et découverte → »");
+});
+
 // L'étape 6 (une carte par addon, aperçu de l'accueil, envoi dans Nuvio) est construite dans le navigateur par le
 // code de guide-simple.js : on vérifie que ce code est là et que les repères qu'il cherche existent encore.
 test("copie_guide_etape_6_reperes", async () => {

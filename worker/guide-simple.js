@@ -603,8 +603,10 @@ export function avecModeSimple(page) {
   page = page.replace(/<a class="sortie" href="(https?:\/\/[^/"]+)[^"]*"[^>]*>/, (m, o) => `<a class="sortie" href="${o}/">`)
     .replace(/(<a class="sortie"[^>]*>[^]*?<b>[^<]*<\/b><span>)[^<]*(<\/span>)/, (m, a, b) => a + "Retour au hall" + b);
   page = page.replace(/(<section class="act" id="reglages">\s*<header><span class="num">\d+<\/span><span class="label">)[^<]*</, (m, a) => a + "Mise en scène<");
-  // Étape 4 : le menu Addons est dans « Contenu et découverte ».
-  page = page.replace(/(<section class="act" id="telephone">[^]*?<span class="path">)(Addons → )/, (m, a, b) => a + "Contenu et découverte → " + b);
+  // Le menu Addons de Nuvio est dans « Contenu et découverte » (étape 4, « Actualiser les addons » en fin d'étape 6).
+  page = page.replace(/<span class="path">Addons → /g, '<span class="path">Contenu et découverte → Addons → ');
+  // Étape 6 : les addons ne se collent plus un par un dans Nuvio, « Envoyer dans Nuvio » les installe tous.
+  page = page.replace(/(<section class="act" id="addons">[^]*?<p class="lead">)[^]*?(<\/p>)/, (m, a, b) => a + "L'ordre compte : Nuvio interroge les addons de haut en bas, et ils partent dans cet ordre. Pour Lumio et WAStream, configure-les sur leur site et colle ici le lien qu'ils te donnent. À la fin, <b>Envoyer dans Nuvio</b> les installe tous d'un coup." + b);
   const i = page.lastIndexOf("</body>");
   return i < 0 ? page + GUIDE_SIMPLE : page.slice(0, i) + GUIDE_SIMPLE + page.slice(i);
 }
