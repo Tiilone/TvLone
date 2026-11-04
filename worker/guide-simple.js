@@ -13,6 +13,13 @@ html.nvs-on .act ol > li, html.nvs-on .act ul > li { margin-bottom: .45em; }
 .nvs-lien-champ { display: block; width: 100%; box-sizing: border-box; margin: 8px 0 2px; padding: 10px 12px; border-radius: 8px;
   border: 1.5px solid rgba(255, 207, 107, .45); background: rgba(0, 0, 0, .25); color: var(--cream, #f5ead8); font: 400 .9rem/1.3 var(--body, system-ui, sans-serif); }
 .nvs-lien-champ:focus { outline: none; border-color: var(--bulb, #ffcf6b); }
+.nvs-outils { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 0 0 12px; }
+.nvs-outils .seg { display: inline-flex; border: 1px solid var(--seat); border-radius: 10px; overflow: hidden; }
+.nvs-outils button { font: 700 .85rem var(--body); padding: 8px 14px; border: 0; background: var(--velvet); color: var(--dim); cursor: pointer; }
+.nvs-outils .seg button + button { border-left: 1px solid var(--seat); }
+.nvs-outils button[aria-pressed="true"] { background: var(--cream); color: var(--ink); }
+.nvs-outils .pp, .nvs-outils .retour { border: 1px solid var(--seat); border-radius: 10px; }
+.nvs-outils .retour { color: var(--cream); }
 .nvs-ecran { position: relative; aspect-ratio: 16 / 9; margin: 10px 0 12px; border-radius: 8px; overflow: hidden; background: #0D0D0D;
   container-type: inline-size; box-shadow: 0 0 0 6px #050304, 0 0 0 8px #2b1820, 0 18px 40px rgba(0, 0, 0, .55); }
 .nvs-cache-carte[hidden] { display: none !important; }
@@ -241,7 +248,7 @@ const JS = String.raw`(() => {
         const dessiner = async () => {
           const lien = lienCat();
           if (!window.NV || !NV.ecran || lien === dessine) return;
-          dessine = lien; texteIntro();
+          dessine = lien; texteIntro(); etats();
           const base = lien.replace(/\/manifest\.json$/, "");
           if (E && E.hero && E.hero.stopVideo) E.hero.stopVideo();
           ecran.textContent = "";
@@ -279,12 +286,27 @@ const JS = String.raw`(() => {
         if ("IntersectionObserver" in window) new IntersectionObserver((es, o) => { if (es.some((e) => e.isIntersecting)) { o.disconnect(); vu = true; dessiner(); } }, { rootMargin: "200px 0px" }).observe(ecran);
         else { vu = true; setTimeout(dessiner, 0); }
         if (code) new MutationObserver(() => { if (vu) dessiner(); else texteIntro(); }).observe(code, { childList: true, characterData: true, subtree: true });
+        // Sous l'écran, comme l'aperçu du hall : la télécommande (Retour) et les réglages d'affichage.
+        const outils = el("div", "nvs-outils"), seg = el("div", "seg");
+        const bRet = el("button", "retour", "◀ Retour"), bV = el("button", null, "Affiches verticales"), bP = el("button", null, "Paysage"), bPP = el("button", "pp", "Affiches maison");
+        [bRet, bV, bP, bPP].forEach((b) => { b.type = "button"; });
+        bRet.title = "Le bouton Retour de la télécommande (touche Échap ou Retour arrière dans l'aperçu)";
+        const etats = () => { if (!window.NV) return; bV.setAttribute("aria-pressed", String(NV.reglages.format === "p")); bP.setAttribute("aria-pressed", String(NV.reglages.format === "l")); bPP.setAttribute("aria-pressed", String(!!NV.reglages.pp)); };
+        bRet.addEventListener("click", () => { if (E) E.retour(); });
+        bV.addEventListener("click", () => { NV.reglages.format = "p"; etats(); if (E) E.paysage(false); });
+        bP.addEventListener("click", () => { NV.reglages.format = "l"; etats(); if (E) E.paysage(true); });
+        bPP.addEventListener("click", () => { NV.reglages.pp = !NV.reglages.pp; etats(); if (E) E.pp(); if (window.sfx) sfx.click(); });
+        seg.append(bV, bP); outils.append(bRet, seg, bPP);
+        ecran.addEventListener("keydown", (e) => {
+          if (!E || e.target.matches("input, textarea")) return;
+          if (e.key === "Escape" || e.key === "Backspace") { e.preventDefault(); E.retour(); }
+        });
         bulle(intro, "<p>Les rangées d'accueil en français (saison, tendances, nouveautés sur tes plateformes…), les catalogues de Découvrir, la recherche et les fiches des films et séries, avec les collections et les affiches.</p>");
         const option = el("p", "nvs-option", "<b>Facultatif</b> · choisir tes rangées, tes plateformes et tes filtres : ");
         if (perso) { perso.textContent = "Personnaliser mon catalogue"; perso.classList.add("nvs-secondaire"); option.appendChild(perso); }
         const d = avance(cat);
         if (seance) seance.remove();
-        cat.append(intro, ecran, option, d);
+        cat.append(intro, ecran, outils, option, d);
         cat._nvsSeance = seance;
       }
 
