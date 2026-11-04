@@ -592,6 +592,9 @@ export function avecModeSimple(page) {
   page = page.split(DOWNLOADER_ORIGINE).join(DOWNLOADER_COPIE);
   page = avecCompteNuvio(page);
   page = entracteApresEtape5(page);
+  // Pas de raccourci « Tu as déjà Nuvio ? Passe direct à la salle 2 » : avoir Nuvio ne veut pas dire avoir les
+  // addons (Lumio, WAStream…), le guide reste le chemin.
+  page = page.replace(/\s*<a class="raccourci"[^>]*>[^<]*<\/a>/, "");
   // « Sortie », en bas du guide : vers le hall plutôt que vers la salle 2.
   page = page.replace(/<a class="sortie" href="([^"]*)\/configure" data-programmation>/, (m, o) => `<a class="sortie" href="${o}/">`)
     .replace("<span>Retour à ta programmation</span>", "<span>Retour au hall</span>");
