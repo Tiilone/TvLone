@@ -25,6 +25,8 @@ html.nvs-on .act ol > li, html.nvs-on .act ul > li { margin-bottom: .45em; }
 .nvs-plein .nvs-ecran { width: min(1180px, calc(100vw - 32px), calc((100vh - 110px) * 16 / 9)); margin: 0; }
 .nvs-plein .nvs-outils { margin: 0; }
 .nvs-plein-x { position: absolute; top: 16px; right: 16px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .1); color: #fff; font: 800 1.3rem/1 var(--body); cursor: pointer; }
+#installer .nvs-compte { display: none; }
+#panel-tv:not([hidden]) ~ .nvs-compte, #panel-fire:not([hidden]) ~ .nvs-compte { display: block; }
 .nvs-compte { margin-top: 18px; padding: 12px 16px; border-radius: 10px; border: 1px solid rgba(255, 207, 107, .45); background: rgba(255, 207, 107, .07); }
 .nvs-compte p { margin: 0; }
 .nvs-compte p + p { margin-top: 6px; }
@@ -219,20 +221,6 @@ const JS = String.raw`(() => {
       });
       li.appendChild(ul);
     });
-
-    // Ranger l'accueil : l'aperçu est à l'étape 6 (carte Catalogue FR) ; avec un compte, l'envoi range déjà l'accueil ;
-    // les deux cas particuliers passent dans une bulle. Seulement si l'étape a toujours sa forme (sinon telle quelle).
-    (() => {
-      const s = document.getElementById("ranger");
-      const voir = s && s.querySelector("[data-resultat]"), chemin = s && s.querySelector(":scope > p > .path");
-      const notes = s ? [...s.querySelectorAll(":scope > p.note")] : [];
-      if (!voir || !chemin || notes.length !== 2 || !/Suivre l'ordre des addons/.test(chemin.parentElement.textContent)) return;
-      voir.closest("p").remove();
-      const p = chemin.parentElement;
-      p.innerHTML = "Avec un compte Nuvio, <b>rien à faire</b> : le bouton <b>Envoyer dans Nuvio</b> de l'étape 6 range déjà l'accueil. Sans compte : ";
-      p.append(chemin, document.createRange().createContextualFragment(" → active <b>Suivre l'ordre des addons</b>."));
-      const q = bouton(); notes.forEach((n) => { q._nvs.push("<p>" + n.innerHTML + "</p>"); n.remove(); }); p.appendChild(q);
-    })();
 
     // Étape 6 : une carte par addon, puis une carte « Envoyer dans Nuvio » qui envoie tout d'un coup (page /compte-nuvio,
     // voir worker/compte-autres.js). Les liens perso (Lumio, WAStream) sont collés dans leur carte et gardés dans ce
@@ -499,8 +487,9 @@ const JS = String.raw`(() => {
 
 export const GUIDE_SIMPLE = `<style>${CSS}</style><script>${JS}</script>`;
 
-// Étapes retirées sur cette copie : « Tout envoyer dans Nuvio » (billet de la salle 2) s'en charge.
-const ETAPES_RETIREES = ["collections", "affiches"];
+// Étapes retirées sur cette copie : « Tout envoyer dans Nuvio » (billet de la salle 2, ou étape 6) s'en charge,
+// rangement de l'accueil compris.
+const ETAPES_RETIREES = ["collections", "affiches", "ranger"];
 
 /**
  * Retire des étapes avant que la page ne démarre : elles restent dans la page (cachées, hors de « section.act »)
@@ -538,10 +527,11 @@ function retirerEtapes(page) {
 // Code Downloader (raccourcisseur AFTVnews) de cette copie, à la place de celui du dépôt d'origine.
 const DOWNLOADER_ORIGINE = "5486412", DOWNLOADER_COPIE = "8522294";
 
-// Étape « Installer Nuvio » : créer son compte Nuvio et le connecter, ce qu'attend l'envoi de l'étape 6.
+// Étape « Installer Nuvio » : créer son compte Nuvio et le connecter, ce qu'attend l'envoi de l'étape 6. Montré
+// seulement avec les onglets TV (voir la CSS) : sur téléphone ou ordinateur, pas besoin de code QR.
 const COMPTE_NUVIO = `
     <div class="nvs-compte">
-      <p><b>Crée ton compte Nuvio</b> (gratuit) et connecte-le : dans Nuvio, <span class="path">Paramètres → Compte → Connexion par code QR</span>, scanne le code avec ton téléphone et inscris-toi avec ton adresse e-mail (ou connecte-toi si tu as déjà un compte).</p>
+      <p><b>Crée ton compte Nuvio</b> (gratuit) et connecte-le : dans Nuvio sur ta TV, <span class="path">Paramètres → Compte → Connexion par code QR</span>, scanne le code avec ton téléphone et inscris-toi avec ton adresse e-mail (ou connecte-toi si tu as déjà un compte).</p>
       <p class="small">C'est lui qui permet au bouton <b>Envoyer dans Nuvio</b> (étape 6) de tout installer d'un coup. Connecte <b>chaque appareil</b> (TV, téléphone, ordinateur) au <b>même compte</b>.</p>
     </div>
   `;
@@ -556,6 +546,7 @@ export function avecModeSimple(page) {
   page = retirerEtapes(page);
   page = page.split(DOWNLOADER_ORIGINE).join(DOWNLOADER_COPIE);
   page = avecCompteNuvio(page);
+  page = page.replace(/(<section class="act" id="reglages">\s*<header><span class="num">\d+<\/span><span class="label">)Réglages fins</, "$1Mise en scène<");
   const i = page.lastIndexOf("</body>");
   return i < 0 ? page + GUIDE_SIMPLE : page.slice(0, i) + GUIDE_SIMPLE + page.slice(i);
 }
