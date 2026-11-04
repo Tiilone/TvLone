@@ -7,16 +7,16 @@
 const BILLET = /\s*<a class="film-du-jour"[^]*?<\/a>/;
 const APERCU = /\s*<button type="button" class="apercu-lien" data-resultat>[^<]*(?:<(?!\/button>)[^<]*)*<\/button>/;
 
-const PORTES = [
-  ["<b>Je n'ai pas encore Nuvio</b><small>Le guide de A à Z : on installe tout, dans l'ordre, sur TV, téléphone ou ordinateur. Environ 25 minutes.</small>",
-    "<b>Je pars de zéro</b><small>Nuvio, AllDebrid, Lumio et le catalogue en français : on installe tout, dans l'ordre, sur TV, téléphone ou ordinateur. Environ 25 minutes.</small>"],
-  ["<b>J'ai déjà Nuvio</b><small>Compose ton accueil : rangées, plateformes, filtres et collections, avec un aperçu en direct.</small>",
-    "<b>Je suis déjà équipé</b><small>Nuvio et Lumio sont déjà installés ? Compose ton accueil : rangées, plateformes, filtres et collections, avec un aperçu en direct.</small>"],
-];
+// Les portes sont repérées par leur numéro (plaque « Salle 1 », « Salle 2 »), pas par leur texte : le titre et la
+// phrase sont remplacés quels qu'ils soient dans la page d'origine (tests/ma-copie.test.js vérifie qu'ils ont pris).
+export const PORTES = {
+  1: ["Je pars de zéro", "Nuvio, AllDebrid, Lumio et le catalogue en français : on installe tout, dans l'ordre, sur TV, téléphone ou ordinateur. Environ 25 minutes."],
+  2: ["Je suis déjà équipé", "Nuvio et Lumio sont déjà installés ? Compose ton accueil : rangées, plateformes, filtres et collections, avec un aperçu en direct."],
+};
+const PORTE = /(<span class="plaque-porte">Salle (\d)<\/span>[^]*?<span class="texte"><b>)[^<]*(<\/b><small>)[^<]*(<\/small>)/g;
 
 /** Hall de cette copie : sans le jeu, sans le bouton d'aperçu de l'accueil, portes selon ce qu'on a installé. */
 export function avecHallSimple(page) {
   page = page.replace(BILLET, "").replace(APERCU, "");
-  for (const [avant, apres] of PORTES) page = page.split(avant).join(apres);
-  return page;
+  return page.replace(PORTE, (m, a, n, b, c) => (PORTES[n] ? a + PORTES[n][0] + b + PORTES[n][1] + c : m));
 }

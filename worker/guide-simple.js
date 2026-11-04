@@ -596,11 +596,13 @@ export function avecModeSimple(page) {
   // addons (Lumio, WAStream…), le guide reste le chemin.
   page = page.replace(/\s*<a class="raccourci"[^>]*>[^<]*<\/a>/, "");
   // Le bouton du haut montre l'accueil conseillé, pas forcément celui qu'on aura après sa personnalisation.
-  page = page.replace(/(<button type="button" class="voir-resultat" data-resultat>[^]*?)Voir l'accueil que tu auras à la fin<\/button>/, (m, debut) => debut + "Aperçu de l'accueil que tu auras à la fin</button>");
+  // (Les remplacements visent la structure de la page, pas ses phrases : ils tiennent si le texte d'origine change.
+  // tests/ma-copie.test.js vérifie qu'ils ont toujours pris.)
+  page = page.replace(/(<button type="button" class="voir-resultat" data-resultat>[^]*?<\/svg>)[^<]*<\/button>/, (m, debut) => debut + "Aperçu de l'accueil que tu auras à la fin</button>");
   // « Sortie », en bas du guide : vers le hall plutôt que vers la salle 2.
-  page = page.replace(/<a class="sortie" href="([^"]*)\/configure" data-programmation>/, (m, o) => `<a class="sortie" href="${o}/">`)
-    .replace("<span>Retour à ta programmation</span>", "<span>Retour au hall</span>");
-  page = page.replace(/(<section class="act" id="reglages">\s*<header><span class="num">\d+<\/span><span class="label">)Réglages fins</, "$1Mise en scène<");
+  page = page.replace(/<a class="sortie" href="(https?:\/\/[^/"]+)[^"]*"[^>]*>/, (m, o) => `<a class="sortie" href="${o}/">`)
+    .replace(/(<a class="sortie"[^>]*>[^]*?<b>[^<]*<\/b><span>)[^<]*(<\/span>)/, (m, a, b) => a + "Retour au hall" + b);
+  page = page.replace(/(<section class="act" id="reglages">\s*<header><span class="num">\d+<\/span><span class="label">)[^<]*</, (m, a) => a + "Mise en scène<");
   const i = page.lastIndexOf("</body>");
   return i < 0 ? page + GUIDE_SIMPLE : page.slice(0, i) + GUIDE_SIMPLE + page.slice(i);
 }
