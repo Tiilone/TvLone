@@ -223,6 +223,13 @@ const JS = String.raw`(() => {
       li.appendChild(ul);
     });
 
+    // Le sommaire de la bobine copie l'adresse de « Sortie » (désormais le hall) pour « Ta programmation (salle 2) » :
+    // il reprend celle du lien « Salle 2 » de la page.
+    {
+      const home = document.querySelector("#reel-menu a.home"), s2 = document.querySelector(".salles a[data-programmation]");
+      if (home && s2) home.href = s2.href;
+    }
+
     // Étape 6 : une carte par addon, puis une carte « Envoyer dans Nuvio » qui envoie tout d'un coup (page /compte-nuvio,
     // voir worker/compte-autres.js). Les liens perso (Lumio, WAStream) sont collés dans leur carte et gardés dans ce
     // navigateur, sous les clés que la page d'envoi reprend. Sans lien, l'addon est laissé de côté. Le contenu
@@ -572,6 +579,9 @@ export function avecModeSimple(page) {
   page = retirerEtapes(page);
   page = page.split(DOWNLOADER_ORIGINE).join(DOWNLOADER_COPIE);
   page = avecCompteNuvio(page);
+  // « Sortie », en bas du guide : vers le hall plutôt que vers la salle 2.
+  page = page.replace(/<a class="sortie" href="([^"]*)\/configure" data-programmation>/, (m, o) => `<a class="sortie" href="${o}/">`)
+    .replace("<span>Retour à ta programmation</span>", "<span>Retour au hall</span>");
   page = page.replace(/(<section class="act" id="reglages">\s*<header><span class="num">\d+<\/span><span class="label">)Réglages fins</, "$1Mise en scène<");
   const i = page.lastIndexOf("</body>");
   return i < 0 ? page + GUIDE_SIMPLE : page.slice(0, i) + GUIDE_SIMPLE + page.slice(i);
