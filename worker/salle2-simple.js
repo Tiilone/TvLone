@@ -70,7 +70,8 @@ export function avecSalle2Simple(page) {
   if (fin < 0) return page;
   const section = page.slice(i, fin);
   const header = (section.match(/<header>[\s\S]*?<\/header>/) || [])[0];
-  const etapes = [...section.matchAll(/<li>[\s\S]*?<\/li>/g)].map((m) => m[0]);
+  // (Le menu Addons est dans « Contenu et découverte ».)
+  const etapes = [...section.matchAll(/<li>[\s\S]*?<\/li>/g)].map((m) => m[0].replace(/(Nuvio : )(Addons → )/, "$1Contenu et découverte → $2"));
   const paras = [...section.matchAll(/<p class="sub">([\s\S]*?)<\/p>/g)].map((m) => m[1]);
   if (!header || etapes.length !== 4 || paras.length !== 3 || !/QR code/.test(etapes[0]) || !/Tu pars de zéro/.test(paras[2])) return page;
 

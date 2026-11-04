@@ -93,6 +93,11 @@ test("copie_guide_tmdb_visuels", async () => {
   assert.match(await page("/configure"), /désactive aussi Bandes-annonces, Visuels, Informations de base et Détails/, "salle 2 : la consigne TMDB n'est plus à jour");
 });
 
+test("copie_gerer_depuis_le_telephone_chemin_complet", async () => {
+  assert.match(section(await page("/guide"), "telephone"), /<span class="path">Contenu et découverte → Addons → Gérer depuis le téléphone<\/span>/, "étape 4 : « Contenu et découverte → » manque avant « Addons → Gérer depuis le téléphone »");
+  assert.match(await page("/configure"), /Nuvio : Contenu et découverte → Addons → <b>Gérer depuis le téléphone<\/b>/, "salle 2 (sans compte) : « Contenu et découverte → » manque avant « Addons → Gérer depuis le téléphone »");
+});
+
 // L'étape 6 (une carte par addon, aperçu de l'accueil, envoi dans Nuvio) est construite dans le navigateur par le
 // code de guide-simple.js : on vérifie que ce code est là et que les repères qu'il cherche existent encore.
 test("copie_guide_etape_6_reperes", async () => {

@@ -603,6 +603,8 @@ export function avecModeSimple(page) {
   page = page.replace(/<a class="sortie" href="(https?:\/\/[^/"]+)[^"]*"[^>]*>/, (m, o) => `<a class="sortie" href="${o}/">`)
     .replace(/(<a class="sortie"[^>]*>[^]*?<b>[^<]*<\/b><span>)[^<]*(<\/span>)/, (m, a, b) => a + "Retour au hall" + b);
   page = page.replace(/(<section class="act" id="reglages">\s*<header><span class="num">\d+<\/span><span class="label">)[^<]*</, (m, a) => a + "Mise en scène<");
+  // Étape 4 : le menu Addons est dans « Contenu et découverte ».
+  page = page.replace(/(<section class="act" id="telephone">[^]*?<span class="path">)(Addons → )/, (m, a, b) => a + "Contenu et découverte → " + b);
   const i = page.lastIndexOf("</body>");
   return i < 0 ? page + GUIDE_SIMPLE : page.slice(0, i) + GUIDE_SIMPLE + page.slice(i);
 }
