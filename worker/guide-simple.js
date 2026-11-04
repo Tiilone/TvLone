@@ -25,8 +25,9 @@ html.nvs-on .act ol > li, html.nvs-on .act ul > li { margin-bottom: .45em; }
 .nvs-plein .nvs-ecran { width: min(1180px, calc(100vw - 32px), calc((100vh - 110px) * 16 / 9)); margin: 0; }
 .nvs-plein .nvs-outils { margin: 0; }
 .nvs-plein-x { position: absolute; top: 16px; right: 16px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .1); color: #fff; font: 800 1.3rem/1 var(--body); cursor: pointer; }
-#installer .nvs-compte { display: none; }
-#panel-tv:not([hidden]) ~ .nvs-compte, #panel-fire:not([hidden]) ~ .nvs-compte { display: block; }
+#installer .nvs-compte-tv { display: none; }
+#panel-tv:not([hidden]) ~ .nvs-compte-tv, #panel-fire:not([hidden]) ~ .nvs-compte-tv { display: block; }
+#panel-tv:not([hidden]) ~ .nvs-compte-autre, #panel-fire:not([hidden]) ~ .nvs-compte-autre { display: none; }
 .nvs-compte { margin-top: 18px; padding: 12px 16px; border-radius: 10px; border: 1px solid rgba(255, 207, 107, .45); background: rgba(255, 207, 107, .07); }
 .nvs-compte p { margin: 0; }
 .nvs-compte p + p { margin-top: 6px; }
@@ -527,18 +528,29 @@ function retirerEtapes(page) {
 // Code Downloader (raccourcisseur AFTVnews) de cette copie, à la place de celui du dépôt d'origine.
 const DOWNLOADER_ORIGINE = "5486412", DOWNLOADER_COPIE = "8522294";
 
-// Étape « Installer Nuvio » : créer son compte Nuvio et le connecter, ce qu'attend l'envoi de l'étape 6. Montré
-// seulement avec les onglets TV (voir la CSS) : sur téléphone ou ordinateur, pas besoin de code QR.
+// Étape « Installer Nuvio » : créer son compte Nuvio et le connecter, ce qu'attend l'envoi de l'étape 6. Deux
+// encadrés, l'un ou l'autre selon l'onglet (voir la CSS) : sur TV par code QR ; sur téléphone ou ordinateur,
+// directement dans l'appli.
+const COMPTE_SUITE = `<p class="small">C'est lui qui permet au bouton <b>Envoyer dans Nuvio</b> (étape 6) de tout installer d'un coup. Connecte <b>chaque appareil</b> (TV, téléphone, ordinateur) au <b>même compte</b>.</p>`;
 const COMPTE_NUVIO = `
-    <div class="nvs-compte">
+    <div class="nvs-compte nvs-compte-tv">
       <p><b>Crée ton compte Nuvio</b> (gratuit) et connecte-le : dans Nuvio sur ta TV, <span class="path">Paramètres → Compte → Connexion par code QR</span>, scanne le code avec ton téléphone et inscris-toi avec ton adresse e-mail (ou connecte-toi si tu as déjà un compte).</p>
-      <p class="small">C'est lui qui permet au bouton <b>Envoyer dans Nuvio</b> (étape 6) de tout installer d'un coup. Connecte <b>chaque appareil</b> (TV, téléphone, ordinateur) au <b>même compte</b>.</p>
+      ${COMPTE_SUITE}
+    </div>
+    <div class="nvs-compte nvs-compte-autre">
+      <p><b>Crée ton compte Nuvio</b> (gratuit) et connecte-le : dans Nuvio, <span class="path">Paramètres → Compte</span>, inscris-toi avec ton adresse e-mail (ou connecte-toi si tu as déjà un compte).</p>
+      ${COMPTE_SUITE}
     </div>
   `;
+// Sur ordinateur (Windows, Mac, Linux), « Ouvre Nuvio » suffit : pas de « tu colles les liens directement dans l'appli ».
+const LIENS_APPLI = " : tu colles les liens directement dans l'appli.";
 function avecCompteNuvio(page) {
   const i = page.indexOf('<section class="act" id="installer">');
   const fin = i < 0 ? -1 : page.indexOf("</section>", i);
-  return fin < 0 ? page : page.slice(0, fin) + COMPTE_NUVIO + page.slice(fin);
+  if (fin < 0) return page;
+  const pc = page.indexOf('id="panel-pc"', i);
+  const avant = pc < 0 || pc > fin ? page.slice(i, fin) : page.slice(i, pc) + page.slice(pc, fin).split(LIENS_APPLI).join(".");
+  return page.slice(0, i) + avant + COMPTE_NUVIO + page.slice(fin);
 }
 
 /** Ajoute le mode simple à la page du guide, juste avant </body>. */
