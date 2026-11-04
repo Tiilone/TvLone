@@ -4,7 +4,7 @@
 // Seul ce mode est proposé : le guide complet n'est plus accessible.
 
 const CSS = `
-html.nvs-on .secret, html.nvs-on #reclames, html.nvs-on #r-dots, html.nvs-on .entracte,
+html.nvs-on .secret, html.nvs-on #reclames, html.nvs-on #r-dots,
 html.nvs-on .hero > p:not(.tagline):not(.nvs-barre) { display: none !important; }
 html.nvs-on .act ol > li, html.nvs-on .act ul > li { margin-bottom: .45em; }
 .nvs-envoi { margin: 14px 0 10px; }
@@ -574,11 +574,24 @@ function avecCompteNuvio(page) {
   return page.slice(0, i) + avant + COMPTE_NUVIO + page.slice(fin);
 }
 
+// L'entracte (et sa vendeuse d'esquimaux, un secret de la salle) : juste après l'étape 5 (« Créer ta clé »), au
+// milieu du guide de cette copie, plutôt qu'après les addons. Laissé à sa place si un repère manque.
+function entracteApresEtape5(page) {
+  const m = /\s*<aside class="entracte"[^]*?<\/aside>/.exec(page);
+  const i = page.indexOf('<section class="act" id="comptes">');
+  const fin = i < 0 ? -1 : page.indexOf("</section>", i);
+  if (!m || fin < 0 || m.index < fin) return page;
+  const sans = page.slice(0, m.index) + page.slice(m.index + m[0].length);
+  const apres = fin + "</section>".length;
+  return sans.slice(0, apres) + "\n" + m[0] + sans.slice(apres);
+}
+
 /** Ajoute le mode simple à la page du guide, juste avant </body>. */
 export function avecModeSimple(page) {
   page = retirerEtapes(page);
   page = page.split(DOWNLOADER_ORIGINE).join(DOWNLOADER_COPIE);
   page = avecCompteNuvio(page);
+  page = entracteApresEtape5(page);
   // « Sortie », en bas du guide : vers le hall plutôt que vers la salle 2.
   page = page.replace(/<a class="sortie" href="([^"]*)\/configure" data-programmation>/, (m, o) => `<a class="sortie" href="${o}/">`)
     .replace("<span>Retour à ta programmation</span>", "<span>Retour au hall</span>");
