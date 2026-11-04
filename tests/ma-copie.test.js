@@ -131,6 +131,7 @@ test("copie_salle_2_au_telephone", async () => {
   assert.match(html, /<nav class="nvm-barre" aria-label="Raccourcis">/, "salle 2 : la barre d'onglets du téléphone a disparu (salle2-mobile.js)");
   for (const o of ["ecran", "rangees", "ordre", "collections", "billet"]) assert.ok(html.includes(`data-nvm="${o}"`), `salle 2 : onglet « ${o} » absent`);
   assert.match(html, /\.nvm-poignee/, "salle 2 : le rangement au doigt (poignées) a disparu");
+  assert.match(html, /\n#rows \.arrow, \.acc-list \.arrow, \.tiles \.arrow \{ display: none; \}/, "salle 2 : les flèches haut / bas sont revenues (la poignée les remplace partout)");
   // Repères de la page d'origine dont se sert le rangement au doigt : listes, flèches, fenêtres, création de rangée.
   for (const r of ['id="rows"', 'id="accueil-ordre"', 'id="prov-ordre"', 'id="collections"', 'id="acc-ouvrir"', 'id="coll-ouvrir"', 'id="builder"', 'id="b-cancel"', 'id="stage"', 'id="ticket"', 'class="nav"']) assert.ok(html.includes(r), `salle 2 : repère « ${r} » absent`);
   for (const f of ["range-les avec les flèches", "monte ou descends chacune"]) assert.ok(html.includes(f), `salle 2 : consigne « ${f} » absente de la page d'origine (plus réécrite au doigt)`);

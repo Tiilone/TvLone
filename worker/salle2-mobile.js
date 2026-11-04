@@ -1,8 +1,8 @@
 // Salle 2 au téléphone (ajout propre à cette copie, absent du dépôt d'origine) : pensée comme une appli.
 // - Ranger au doigt : chaque ligne qu'on peut monter ou descendre (rangées, ordre de l'accueil, plateformes,
 //   tuiles des collections) reçoit une poignée ⠿ à faire glisser. Au lâcher, la page fait les mêmes
-//   déplacements que ses flèches ↑ ↓ (elle reste seule maîtresse de ses réglages). Au doigt, les flèches
-//   s'effacent ; à la souris, elles restent à côté de la poignée. Au clavier, la poignée répond à ↑ et ↓.
+//   déplacements que ses flèches ↑ ↓, cachées (elle reste seule maîtresse de ses réglages). La poignée marche
+//   au doigt, à la souris, et au clavier (↑ et ↓).
 // - Les fenêtres (collections, ordre de l'accueil) et la création d'une rangée s'ouvrent en plein écran.
 // - Une barre d'onglets en bas : Écran, Rangées, Ordre, Collections, Billet (à la place de la barre du billet).
 // Si un repère manque (la page d'origine a changé), la partie concernée ne fait rien ; la page reste telle quelle.
@@ -22,11 +22,10 @@ const CSS = String.raw`
 .nvm-tri > li.nvm-leve .nvm-poignee { color: var(--bulb); cursor: grabbing; }
 html.nvm-glisse, html.nvm-glisse * { cursor: grabbing !important; }
 
-/* Au doigt : la poignée remplace les flèches. */
-@media (hover: none), (pointer: coarse) {
-  #rows .arrow, .acc-list .arrow, .tiles .arrow { display: none; }
-  #rows .tools .nvm-poignee { margin-left: auto; }
-}
+/* La poignée remplace les flèches (au doigt, à la souris et au clavier). Les flèches restent dans la page,
+   cachées : c'est par elles que passent les déplacements. */
+#rows .arrow, .acc-list .arrow, .tiles .arrow { display: none; }
+#rows .tools .nvm-poignee { margin-left: auto; }
 
 /* La barre d'onglets du bas (téléphone et tablette). */
 .nvm-barre { display: none; }
@@ -116,10 +115,11 @@ const JS = String.raw`(() => {
     new MutationObserver(tout).observe(ol, { childList: true, subtree: !!sousArbre });
   };
   ["#rows", "#accueil-ordre", "#prov-ordre"].forEach((s) => suivre($(s)));
-  // Au doigt, les consignes parlent de glisser plutôt que de flèches.
-  if (matchMedia("(hover: none), (pointer: coarse)").matches) {
-    [["#s-rangees .sub", /range-les avec les flèches/, "range-les en les faisant glisser du doigt (⠿)"],
-     ["#acc-dialog .sub", /monte ou descends chacune/, "fais glisser chacune du doigt (⠿)"]].forEach(([s, re, par]) => {
+  // Les consignes parlent de glisser plutôt que de flèches.
+  {
+    const doigt = matchMedia("(hover: none), (pointer: coarse)").matches ? " du doigt" : "";
+    [["#s-rangees .sub", /range-les avec les flèches/, "range-les en les faisant glisser" + doigt + " (⠿)"],
+     ["#acc-dialog .sub", /monte ou descends chacune/, "fais glisser chacune" + doigt + " (⠿)"]].forEach(([s, re, par]) => {
       const p = $(s);
       if (p && re.test(p.innerHTML)) p.innerHTML = p.innerHTML.replace(re, par);
     });
