@@ -1145,24 +1145,7 @@ export const STAGE_JS = String.raw`
     document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !tPanel.hidden) { open(false); tBtn.focus(); } });
   }
   muetFx();
-  // Un billet de collection par visite : un film à l'affiche, gardé dans l'album.
-  try {
-    const origin = (document.querySelector(".foyer") || {}).dataset;
-    if (origin && origin.origin && !sessionStorage.getItem("billet")) {
-      sessionStorage.setItem("billet", "1");
-      fetch(origin.origin + "/catalog/movie/accueil-top10.json").then((r) => r.json()).then((d) => {
-        // Seulement un film avec son titre en français (pas d'écriture chinoise, cyrillique…) : sans VF, pas de billet.
-        const metas = (d.metas || []).filter((m) => m.background && m.name && !/[\u0370-\u1CFF\u2E80-\uD7FF\uF900-\uFAFF]/.test(m.name) && !album.some((b) => b.id === m.id));
-        if (!metas.length) return;
-        const m = metas[Math.floor(Math.random() * metas.length)];
-        const b = { id: m.id, type: m.type || "movie", n: m.name, img: m.background.replace(/[/](original|w1920|w1280)[/]/, "/w300/"), bg: m.background.replace(/[/](original|w1920|w1280)[/]/, "/w780/"), poster: m.poster, desc: m.description || "",
-          an: m.releaseInfo || "", genres: (m.genres || []).slice(0, 3), note: m.imdbRating || "", d: new Date().toISOString().slice(0, 10) };
-        album.unshift(b);
-        album = album.slice(0, 60); store.set("billets", JSON.stringify(album)); drawSecrets();
-        setTimeout(() => billetDuJour(b), 4500);
-      }).catch(() => {});
-    }
-  } catch (e) {}
+  // (Cette copie : pas de billet du jour à chaque visite.)
   // ---------- Le billet du jour : une carte à l'arrivée, puis sa fiche ----------
   const lireListe = () => { try { return JSON.parse(store.get("ma-liste") || "[]"); } catch (e) { return []; } };
   function billetDuJour(b) {
