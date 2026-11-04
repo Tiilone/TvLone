@@ -47,6 +47,7 @@ import { avecAutresAddons } from "./compte-autres.js";
 import { copiePage } from "./copie.js";
 import { nouveautesPage } from "./nouveautes.js";
 import { hallPage } from "./hall.js";
+import { avecHallSimple } from "./hall-simple.js";
 import { routeCinemeta } from "./cinemeta.js";
 import { animesDe } from "./anilist.js";
 import { wikidataDe } from "./wikidata.js";
@@ -3141,7 +3142,7 @@ const app = {
       if (fixedId) page.headers.set("Cache-Control", "no-store");
       return page;
     }
-    if (path === "") return html(hallPage({ origin: url.origin, season: decorSaison(url, today), copy: isCopy(url), apercus: apercusDe(env, url.origin) }));   // le hall : choisir sa salle
+    if (path === "") return html(avecHallSimple(hallPage({ origin: url.origin, season: decorSaison(url, today), copy: isCopy(url), apercus: apercusDe(env, url.origin) })));   // le hall : choisir sa salle
     if (path === "/guide") return html(avecModeSimple(guidePage({ origin: url.origin, season: decorSaison(url, today), apercus: apercusDe(env, url.origin) })));
     if (path === "/lien") return html(lienPage({ origin: url.origin }));   // ouvert par les QR codes du guide
     if (path === "/compte-nuvio") return html(avecAutresAddons(compteNuvioPage({ origin: url.origin })));   // collections envoyées au compte Nuvio (essai)
