@@ -126,6 +126,18 @@ test("copie_salle_2_mode_d_emploi", async () => {
   assert.match(html, /<p class="nvs-titre">Avec un compte Nuvio<\/p>/, "salle 2 : l'encadré « Mode d'emploi » n'est plus réécrit (salle2-simple.js)");
 });
 
+test("copie_salle_2_au_telephone", async () => {
+  const html = await page("/configure");
+  assert.match(html, /<nav class="nvm-barre" aria-label="Raccourcis">/, "salle 2 : la barre d'onglets du téléphone a disparu (salle2-mobile.js)");
+  for (const o of ["ecran", "rangees", "ordre", "collections", "billet"]) assert.ok(html.includes(`data-nvm="${o}"`), `salle 2 : onglet « ${o} » absent`);
+  assert.match(html, /\.nvm-poignee/, "salle 2 : le rangement au doigt (poignées) a disparu");
+  // Repères de la page d'origine dont se sert le rangement au doigt : listes, flèches, fenêtres, création de rangée.
+  for (const r of ['id="rows"', 'id="accueil-ordre"', 'id="prov-ordre"', 'id="collections"', 'id="acc-ouvrir"', 'id="coll-ouvrir"', 'id="builder"', 'id="b-cancel"', 'id="stage"', 'id="ticket"', 'class="nav"']) assert.ok(html.includes(r), `salle 2 : repère « ${r} » absent`);
+  for (const f of ["range-les avec les flèches", "monte ou descends chacune"]) assert.ok(html.includes(f), `salle 2 : consigne « ${f} » absente de la page d'origine (plus réécrite au doigt)`);
+  assert.ok(contenuStatique("salle2.js").includes('[["↑", -1, "Monter"], ["↓", 1, "Descendre"]]'), "salle 2 (salle2.js) : les flèches ne s'appellent plus « Monter » / « Descendre », le rangement au doigt ne les trouve plus");
+  for (const s of scriptsEnLigne(html)) assert.doesNotThrow(() => new Function(s), "un script en ligne de la salle 2 ne se lit plus");
+});
+
 test("copie_envoi_dans_nuvio_avec_lumio", async () => {
   const html = await page("/compte-nuvio");
   for (const id of ["e-lumio", "e-wastream", "e-os", "lien-lumio", "lien-wastream"]) assert.ok(html.includes(`id="${id}"`), `/compte-nuvio : « ${id} » absent (compte-autres.js)`);
