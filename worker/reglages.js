@@ -282,7 +282,7 @@ const PAGES = (posterUrl) => [
     ]),
     SEC("Sous-titres", "Langue, style et mode de rendu.", "cc", [
       H("LANGUAGES"),
-      V("Langue préférée", "", "Forcé", { n: "Seuls les passages dans une autre langue (dialogues étrangers, panneaux) sont sous-titrés. Des sous-titres complets ? Choisis-les dans le lecteur." }),
+      V("Langue préférée", "", "Français", { n: "Les sous-titres français passent en premier." }),
       V("Langue préférée secondaire", "", "Non défini"),
       T("Auto Sync Subtitles", "Match the selected add-on subtitle to the timing of the subtitles embedded in the video.", false),
       T("Utiliser les sous-titres forcés", "Préférer les sous-titres forcés lorsque l'audio correspond à la langue des sous-titres", true, { n: "Affiche seulement les passages traduits (une langue étrangère dans un film en VF)." }),

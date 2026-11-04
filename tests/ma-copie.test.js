@@ -77,10 +77,11 @@ test("copie_guide_installer", async () => {
   assert.ok(inst.includes('id="panel-pc"') && !pc.includes("tu colles les liens directement dans l'appli"), "Windows/Linux : « tu colles les liens directement dans l'appli » est revenu");
 });
 
-test("copie_guide_sous_titres_force", async () => {
+test("copie_guide_sous_titres_francais_et_forces", async () => {
   const html = await page("/guide");
-  assert.match(html, /<b>Langue préférée<\/b><\/span><span class="nv-val">Forcé/, "visite des réglages : la langue préférée des sous-titres n'est plus « Forcé »");
-  assert.match(html, /Sous-titres → Langue préférée → Forcé/, "carte OpenSubtitles : la consigne n'est plus « Langue préférée → Forcé »");
+  assert.match(html, /<b>Langue préférée<\/b><\/span><span class="nv-val">Français/, "visite des réglages : la langue préférée des sous-titres n'est plus « Français »");
+  assert.match(html, /Utiliser les sous-titres forcés : <b>activé<\/b>/, "visite des réglages : « Utiliser les sous-titres forcés » n'est plus activé");
+  assert.match(html, /Sous-titres → Langue préférée → Français, et active <b>Utiliser les sous-titres forcés<\/b>/, "carte OpenSubtitles : la consigne n'est plus « Français » + « Utiliser les sous-titres forcés »");
 });
 
 // L'étape 6 (une carte par addon, aperçu de l'accueil, envoi dans Nuvio) est construite dans le navigateur par le
