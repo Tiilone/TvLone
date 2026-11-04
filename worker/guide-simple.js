@@ -264,26 +264,40 @@ const JS = String.raw`(() => {
           if (E && E.hero && E.hero.stopVideo) E.hero.stopVideo();
           ecran.textContent = "";
           const focus = document.activeElement;
-          E = NV.ecran(ecran); E.paysage(NV.reglages.format === "l"); E.pp();
+          E = NV.ecran(ecran, { base: () => base }); E.paysage(NV.reglages.format === "l"); E.pp();
           const tuiles = (c) => { const { piste } = E.rangee(c.title); (c.folders || []).forEach((t) => piste.append(NV.tuile(t, c.title, c.id))); };
+          // Comme l'aperçu de la salle 2 (page.js, renderScreen) : toutes les rangées d'accueil (rangées sur mesure
+          // comprises), dans l'ordre de l'accueil choisi (/accueil.json) ; sans lui, Plateformes, les rangées, les collections.
+          const json = (u) => fetch(u).then((r) => (r.ok ? r.json() : null)).catch(() => null);
           try {
-            const [manifest, colls] = await Promise.all([fetch(base + "/manifest.json").then((r) => r.json()), fetch(base + "/collections.json").then((r) => r.json()).catch(() => [])]);
+            const [manifest, colls, acc] = await Promise.all([fetch(base + "/manifest.json").then((r) => r.json()), json(base + "/collections.json"), json(base + "/accueil.json")]);
             if (dessine !== lien) return;
-            const collections = Array.isArray(colls) ? colls : (colls.collections || []);
-            collections.filter((c) => c.pinToTop).forEach(tuiles);
+            const collections = Array.isArray(colls) ? colls : ((colls && colls.collections) || []);
+            const accueil = (manifest.catalogs || []).filter((c) => c.showInHome !== false && !(c.extra || []).some((x) => x.isRequired));
             const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { io.unobserve(e.target); e.target._charge(); } }), { root: E.rangees, rootMargin: "300px 0px" });
-            (manifest.catalogs || []).filter((c) => c.showInHome !== false && String(c.id).startsWith("accueil-")).forEach((c) => {
+            const rangeeCatalogue = (c) => {
               const { section, piste } = E.rangee(c.name);
               for (let k = 0; k < 8; k++) piste.append(NV.carte(null));
-              section._charge = () => fetch(base + "/catalog/" + c.type + "/" + c.id + ".json").then((x) => x.json()).then((d) => {
+              section._charge = () => fetch(base + "/catalog/" + c.type + "/" + encodeURIComponent(c.id) + ".json").then((x) => x.json()).then((d) => {
+                if (dessine !== lien) return;
                 const metas = (d.metas || []).filter((m) => m.poster);
                 piste.textContent = "";
                 if (!metas.length) { section.remove(); return; }
                 metas.slice(0, 20).forEach((m) => piste.append(NV.carte(m)));
               }).catch(() => section.remove());
               io.observe(section);
+            };
+            const ordre = acc && Array.isArray(acc.ordre) ? acc.ordre : null;
+            if (ordre) ordre.forEach((o) => {
+              const c = o.collection ? collections.find((x) => x.id === o.collection) : accueil.find((x) => x.type === o.type && x.id === o.id);
+              if (c) (o.collection ? tuiles : rangeeCatalogue)(c);
             });
-            collections.filter((c) => !c.pinToTop).forEach(tuiles);
+            else {
+              collections.filter((c) => c.pinToTop).forEach(tuiles);
+              accueil.forEach(rangeeCatalogue);
+              collections.filter((c) => !c.pinToTop).forEach(tuiles);
+            }
+            if (!E.rangees.children.length) { const { piste } = E.rangee("Écran noir"); piste.append(NV.mkd("p", "vide", "Aucune rangée ni collection : coche-en au moins une en personnalisant ton catalogue.")); }
             E.pret();
             if (ecran.querySelector(".nvo-menu")) E.retour();   // le menu, ouvert de lui-même, cacherait l'accueil
           } catch (e) {
