@@ -20,6 +20,14 @@ html.nvs-on .act ol > li, html.nvs-on .act ul > li { margin-bottom: .45em; }
 .nvs-outils button[aria-pressed="true"] { background: var(--cream); color: var(--ink); }
 .nvs-outils .pp, .nvs-outils .retour { border: 1px solid var(--seat); border-radius: 10px; }
 .nvs-outils .retour { color: var(--cream); }
+.nvs-outils .plein { border: 1px solid rgba(255, 207, 107, .6); border-radius: 10px; background: rgba(255, 207, 107, .1); color: var(--bulb); }
+.nvs-plein { position: fixed; inset: 0; z-index: 86; display: grid; place-items: center; align-content: center; gap: 14px; padding: 16px; background: rgba(5, 3, 4, .97); }
+.nvs-plein .nvs-ecran { width: min(1180px, calc(100vw - 32px), calc((100vh - 110px) * 16 / 9)); margin: 0; }
+.nvs-plein .nvs-outils { margin: 0; }
+.nvs-plein-x { position: absolute; top: 16px; right: 16px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .1); color: #fff; font: 800 1.3rem/1 var(--body); cursor: pointer; }
+.nvs-compte { margin-top: 18px; padding: 12px 16px; border-radius: 10px; border: 1px solid rgba(255, 207, 107, .45); background: rgba(255, 207, 107, .07); }
+.nvs-compte p { margin: 0; }
+.nvs-compte p + p { margin-top: 6px; }
 .nvs-ecran { position: relative; aspect-ratio: 16 / 9; margin: 10px 0 12px; border-radius: 8px; overflow: hidden; background: #0D0D0D;
   container-type: inline-size; box-shadow: 0 0 0 6px #050304, 0 0 0 8px #2b1820, 0 18px 40px rgba(0, 0, 0, .55); }
 .nvs-cache-carte[hidden] { display: none !important; }
@@ -110,7 +118,7 @@ const JS = String.raw`(() => {
 
   // Ce qui ne doit jamais bouger : éléments interactifs ou mis à jour par la page.
   const ACTION = "button,input,select,textarea,code,.copy,.path,.pick,[id],[data-copy],[hidden],[data-consigne],form,canvas,svg";
-  const HORS = "li,details,summary,header,.nv,.pupitre,.photo-diag,.trousseau,.reclames,.entracte,.copy,.cle-ad,.modes,.salle2,.qr-modal,.nvs-bulle,.addon-perso,.seance";
+  const HORS = "li,details,summary,header,.nv,.pupitre,.photo-diag,.trousseau,.reclames,.entracte,.copy,.cle-ad,.modes,.salle2,.qr-modal,.nvs-bulle,.addon-perso,.seance,.nvs-compte";
   const VERBES = /^(?:puis |ensuite |enfin )?(?:[^,:.]{1,45}, )?(?:puis |ensuite )?(ouvre|choisis|copie|colle|active|désactive|appuie|tape|installe|va|mets|règle|clique|coche|décoche|vérifie|exclus|scanne|note|autorise|accepte|garde|laisse|fais|déplace|supprime|retire|remets|ajoute|sélectionne|prends|passe|crée|confirme|renseigne|maintiens|dicte|lance|relance|force|regarde|réinstalle|entre|saisis|valide|connecte|associe|télécharge|glisse|double-clic|réponds|envoie|suis|recopie|limite|baisse|évite|utilise|cherche|ferme|redémarre|reviens|attends|change|mets-la|colle-la|copie-la|active-le|ouvre-la|ouvre-le)\b/i;
 
   const estAction = (el) => el.matches(ACTION) || !!el.querySelector(ACTION);
@@ -212,6 +220,20 @@ const JS = String.raw`(() => {
       li.appendChild(ul);
     });
 
+    // Ranger l'accueil : l'aperçu est à l'étape 6 (carte Catalogue FR) ; avec un compte, l'envoi range déjà l'accueil ;
+    // les deux cas particuliers passent dans une bulle. Seulement si l'étape a toujours sa forme (sinon telle quelle).
+    (() => {
+      const s = document.getElementById("ranger");
+      const voir = s && s.querySelector("[data-resultat]"), chemin = s && s.querySelector(":scope > p > .path");
+      const notes = s ? [...s.querySelectorAll(":scope > p.note")] : [];
+      if (!voir || !chemin || notes.length !== 2 || !/Suivre l'ordre des addons/.test(chemin.parentElement.textContent)) return;
+      voir.closest("p").remove();
+      const p = chemin.parentElement;
+      p.innerHTML = "Avec un compte Nuvio, <b>rien à faire</b> : le bouton <b>Envoyer dans Nuvio</b> de l'étape 6 range déjà l'accueil. Sans compte : ";
+      p.append(chemin, document.createRange().createContextualFragment(" → active <b>Suivre l'ordre des addons</b>."));
+      const q = bouton(); notes.forEach((n) => { q._nvs.push("<p>" + n.innerHTML + "</p>"); n.remove(); }); p.appendChild(q);
+    })();
+
     // Étape 6 : une carte par addon, puis une carte « Envoyer dans Nuvio » qui envoie tout d'un coup (page /compte-nuvio,
     // voir worker/compte-autres.js). Les liens perso (Lumio, WAStream) sont collés dans leur carte et gardés dans ce
     // navigateur, sous les clés que la page d'envoi reprend. Sans lien, l'addon est laissé de côté. Le contenu
@@ -296,10 +318,37 @@ const JS = String.raw`(() => {
         bV.addEventListener("click", () => { NV.reglages.format = "p"; etats(); if (E) E.paysage(false); });
         bP.addEventListener("click", () => { NV.reglages.format = "l"; etats(); if (E) E.paysage(true); });
         bPP.addEventListener("click", () => { NV.reglages.pp = !NV.reglages.pp; etats(); if (E) E.pp(); if (window.sfx) sfx.click(); });
-        seg.append(bV, bP); outils.append(bRet, seg, bPP);
+        // Plein écran : l'écran et sa barre passent dans une fenêtre par-dessus la page, puis reviennent à leur place.
+        const bPlein = el("button", "plein", "⛶ Plein écran"); bPlein.type = "button";
+        let plein = null;
+        const fermerPlein = () => {
+          if (!plein) return;
+          const { ov, ici, avant } = plein; plein = null;
+          ici.after(ecran, outils); ici.remove(); ov.remove();
+          document.documentElement.style.overflow = "";
+          bPlein.textContent = "⛶ Plein écran";
+          (avant && avant.isConnected ? avant : bPlein).focus({ preventScroll: true });
+        };
+        const ouvrirPlein = () => {
+          const ov = el("div", "nvs-plein"), ici = document.createComment("aperçu"), x = el("button", "nvs-plein-x", "×");
+          x.type = "button"; x.setAttribute("aria-label", "Fermer le plein écran");
+          ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "Aperçu de ton accueil Nuvio");
+          plein = { ov, ici, avant: document.activeElement };
+          ecran.before(ici); ov.append(x, ecran, outils); document.body.appendChild(ov);
+          document.documentElement.style.overflow = "hidden";
+          bPlein.textContent = "Quitter le plein écran";
+          x.addEventListener("click", fermerPlein);
+          ov.addEventListener("click", (e) => { if (e.target === ov) fermerPlein(); });
+          ov.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); if (E && E.ouvert && E.ouvert()) E.retour(); else fermerPlein(); } });
+          if (!vu) { vu = true; dessiner(); }
+          x.focus();
+        };
+        bPlein.addEventListener("click", () => (plein ? fermerPlein() : ouvrirPlein()));
+        seg.append(bV, bP); outils.append(bRet, seg, bPP, bPlein);
         ecran.addEventListener("keydown", (e) => {
           if (!E || e.target.matches("input, textarea")) return;
-          if (e.key === "Escape" || e.key === "Backspace") { e.preventDefault(); E.retour(); }
+          if (e.key === "Escape" && plein && !(E.ouvert && E.ouvert())) return;   // la fenêtre se ferme
+          if (e.key === "Escape" || e.key === "Backspace") { e.preventDefault(); e.stopPropagation(); E.retour(); }
         });
         bulle(intro, "<p>Les rangées d'accueil en français (saison, tendances, nouveautés sur tes plateformes…), les catalogues de Découvrir, la recherche et les fiches des films et séries, avec les collections et les affiches.</p>");
         const option = el("p", "nvs-option", "<b>Facultatif</b> · choisir tes rangées, tes plateformes et tes filtres : ");
@@ -377,7 +426,7 @@ const JS = String.raw`(() => {
       if (tag.matches(".nvt-pourquoi")) { tag.replaceWith(q); }
       else { tag.after(q); }
       const avant = q.previousSibling;
-      if (avant && avant.nodeType === 3) avant.nodeValue = avant.nodeValue.replace(/s+$/, "");
+      if (avant && avant.nodeType === 3) avant.nodeValue = avant.nodeValue.replace(/\s+$/, "");
     });
 
     if (!simple) return;
@@ -399,7 +448,7 @@ const JS = String.raw`(() => {
     });
 
     // 2. Dans chaque étape numérotée : on garde la consigne, les phrases d'explication passent dans un « ? ».
-    const COUPE = /([.!?…])s+(?=[A-ZÀÂÉÈÊÎÔÛÇ«(])/;
+    const COUPE = /([.!?…])\s+(?=[A-ZÀÂÉÈÊÎÔÛÇ«(])/;
     document.querySelectorAll("section.act li").forEach((li) => {
       if (li.closest(".nvs-cache-carte,details,.nv,.pupitre,.photo-diag,.trousseau,.reclames,.modes")) return;
       if (li.querySelector("button,input,select,textarea,code,.copy,[id],[data-copy],[hidden],ol,ul")) return;
@@ -412,7 +461,7 @@ const JS = String.raw`(() => {
           const fin = m.index + m[1].length;
           phrases[phrases.length - 1].push(document.createTextNode(reste.slice(0, fin)));
           phrases.push([]);
-          reste = reste.slice(fin).replace(/^s+/, "");
+          reste = reste.slice(fin).replace(/^\s+/, "");
         }
         if (reste) phrases[phrases.length - 1].push(document.createTextNode(reste));
       });
@@ -427,7 +476,7 @@ const JS = String.raw`(() => {
         (action ? garde : range).push(ph);
       });
       // « Fais ceci : parce que… » : la justification après les deux-points part aussi dans la bulle.
-      const RAISON = /s:s+((?:sinon|sans |activé|désactivé|il |elle |ils |elles |ça |c'est |le guide |nuvio |on |pas besoin )[s\S]+)$/i;
+      const RAISON = /\s:\s+((?:sinon|sans |activé|désactivé|il |elle |ils |elles |ça |c'est |le guide |nuvio |on |pas besoin )[\s\S]+)$/i;
       garde.forEach((ph) => {
         const der = ph[ph.length - 1];
         if (!der || der.nodeType !== 3) return;
@@ -479,7 +528,7 @@ function retirerEtapes(page) {
     if (retires.includes(n)) { let p = n - 1; while (retires.includes(p)) p--; return nouveau(p); }
     return n - retires.filter((r) => r < n).length;
   };
-  page = page.replace(/<section class="act[^"]*" id="[^"]+">s*<header><span class="num">(\d+)<\/span>/g,
+  page = page.replace(/<section class="act[^"]*" id="[^"]+">\s*<header><span class="num">(\d+)<\/span>/g,
     (m, n) => m.replace(`>${n}<`, ">" + String(nouveau(Number(n))).padStart(n.length, "0") + "<"));
   page = page.replace(/([ée]tapes? )(\d{1,2})\b/g, (m, mot, n) => mot + nouveau(Number(n)));
   page = page.replace('<span id="reel-total">12</span>', `<span id="reel-total">${String(12 - retires.length).padStart(2, "0")}</span>`);
@@ -489,10 +538,24 @@ function retirerEtapes(page) {
 // Code Downloader (raccourcisseur AFTVnews) de cette copie, à la place de celui du dépôt d'origine.
 const DOWNLOADER_ORIGINE = "5486412", DOWNLOADER_COPIE = "8522294";
 
+// Étape « Installer Nuvio » : créer son compte Nuvio et le connecter, ce qu'attend l'envoi de l'étape 6.
+const COMPTE_NUVIO = `
+    <div class="nvs-compte">
+      <p><b>Crée ton compte Nuvio</b> (gratuit) et connecte-le : dans Nuvio, <span class="path">Paramètres → Compte → Connexion par code QR</span>, scanne le code avec ton téléphone et inscris-toi avec ton adresse e-mail (ou connecte-toi si tu as déjà un compte).</p>
+      <p class="small">C'est lui qui permet au bouton <b>Envoyer dans Nuvio</b> (étape 6) de tout installer d'un coup. Connecte <b>chaque appareil</b> (TV, téléphone, ordinateur) au <b>même compte</b>.</p>
+    </div>
+  `;
+function avecCompteNuvio(page) {
+  const i = page.indexOf('<section class="act" id="installer">');
+  const fin = i < 0 ? -1 : page.indexOf("</section>", i);
+  return fin < 0 ? page : page.slice(0, fin) + COMPTE_NUVIO + page.slice(fin);
+}
+
 /** Ajoute le mode simple à la page du guide, juste avant </body>. */
 export function avecModeSimple(page) {
   page = retirerEtapes(page);
   page = page.split(DOWNLOADER_ORIGINE).join(DOWNLOADER_COPIE);
+  page = avecCompteNuvio(page);
   const i = page.lastIndexOf("</body>");
   return i < 0 ? page + GUIDE_SIMPLE : page.slice(0, i) + GUIDE_SIMPLE + page.slice(i);
 }
