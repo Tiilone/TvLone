@@ -13,12 +13,12 @@ html.nvs-on .act ol > li, html.nvs-on .act ul > li { margin-bottom: .45em; }
 .nvs-lien-champ { display: block; width: 100%; box-sizing: border-box; margin: 8px 0 2px; padding: 10px 12px; border-radius: 8px;
   border: 1.5px solid rgba(255, 207, 107, .45); background: rgba(0, 0, 0, .25); color: var(--cream, #f5ead8); font: 400 .9rem/1.3 var(--body, system-ui, sans-serif); }
 .nvs-lien-champ:focus { outline: none; border-color: var(--bulb, #ffcf6b); }
-.nvs-avance { margin-top: 10px; }
+.nvs-ecran { position: relative; aspect-ratio: 16 / 9; margin: 10px 0 12px; border-radius: 8px; overflow: hidden; background: #0D0D0D;
+  container-type: inline-size; box-shadow: 0 0 0 6px #050304, 0 0 0 8px #2b1820, 0 18px 40px rgba(0, 0, 0, .55); }
+.nvs-cache-carte[hidden] { display: none !important; }
 .nvs-case { display: flex; gap: 10px; align-items: center; margin: 8px 0; font-weight: 600; cursor: pointer; }
 .nvs-case input { width: 1.2em; height: 1.2em; accent-color: var(--bulb, #ffcf6b); }
 .nvs-fin .seance { margin-top: 14px; }
-.nvs-avance > summary { cursor: pointer; font-weight: 700; color: var(--bulb, #ffcf6b); text-decoration: underline; text-underline-offset: 3px; }
-.nvs-avance[open] > summary { margin-bottom: 8px; }
 .nvs-envoyer { display: inline-block; padding: 12px 26px; border-radius: 999px; background: var(--bulb, #ffcf6b); color: var(--ink, #2a1a14) !important;
   font-weight: 800; font-size: 1.05rem; text-decoration: none !important; box-shadow: 0 6px 18px rgba(255, 207, 107, .25); }
 .nvs-envoyer:hover { filter: brightness(1.06); }
@@ -208,7 +208,7 @@ const JS = String.raw`(() => {
     // Étape 6 : une carte par addon, puis une carte « Envoyer dans Nuvio » qui envoie tout d'un coup (page /compte-nuvio,
     // voir worker/compte-autres.js). Les liens perso (Lumio, WAStream) sont collés dans leur carte et gardés dans ce
     // navigateur, sous les clés que la page d'envoi reprend. Sans lien, l'addon est laissé de côté. Le contenu
-    // d'origine des cartes est déplacé dans un « Mode avancé » replié, pas supprimé : la page le tient encore à jour.
+    // d'origine des cartes reste dans la page, masqué, pas supprimé : la page le tient encore à jour.
     (() => {
       const cartes = [...document.querySelectorAll("#addons article.addon")];
       const carte = (re) => cartes.find((x) => re.test((x.querySelector("h3") || {}).textContent || ""));
@@ -217,8 +217,8 @@ const JS = String.raw`(() => {
       const lu = (k) => { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } };
       const garde = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
       const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
-      const avance = (a, titre) => {
-        const d = el("details", "nvs-avance", "<summary>" + titre + "</summary>");
+      const avance = (a) => {
+        const d = el("div", "nvs-cache-carte"); d.hidden = true;
         [...a.children].forEach((c) => { if (!c.matches("header")) d.appendChild(c); });
         return d;
       };
@@ -227,20 +227,64 @@ const JS = String.raw`(() => {
 
       // 1. Catalogue FR : son lien (les réglages conseillés, ou le lien perso), et la personnalisation en option.
       {
-        const boite = cat.querySelector(".copy");
         const perso = cat.querySelector(".perso-actions [data-perso-ouvrir]");
-        const note = cat.querySelector("[data-perso]");
         const seance = cat.querySelector("#seance");
-        const intro = el("p", "nvs-cat", "Ton catalogue est déjà réglé avec les réglages conseillés : rien à faire ici. Il part avec le bouton <b>Envoyer dans Nuvio</b> de l'étape 5.");
+        const intro = el("p", "nvs-cat");
+        const code = document.getElementById("u-cat");
+        const lienCat = () => ((code && code.textContent.trim()) || location.origin + "/manifest.json");
+        const estPerso = () => lienCat() !== location.origin + "/manifest.json";
+        const texteIntro = () => { intro.innerHTML = (estPerso() ? "Ton accueil Nuvio, <b>avec ta personnalisation</b>" : "Ton accueil Nuvio, avec les <b>réglages conseillés</b>") + " : rien à faire ici, il part avec le bouton <b>Envoyer dans Nuvio</b> de l'étape 5."; };
+        texteIntro();
+        const ecran = el("div", "nvs-ecran");
+        ecran.setAttribute("aria-label", "Aperçu de ton accueil Nuvio");
+        let E = null, dessine = "";
+        const dessiner = async () => {
+          const lien = lienCat();
+          if (!window.NV || !NV.ecran || lien === dessine) return;
+          dessine = lien; texteIntro();
+          const base = lien.replace(/\/manifest\.json$/, "");
+          if (E && E.hero && E.hero.stopVideo) E.hero.stopVideo();
+          ecran.textContent = "";
+          const focus = document.activeElement;
+          E = NV.ecran(ecran); E.paysage(NV.reglages.format === "l"); E.pp();
+          const tuiles = (c) => { const { piste } = E.rangee(c.title); (c.folders || []).forEach((t) => piste.append(NV.tuile(t, c.title, c.id))); };
+          try {
+            const [manifest, colls] = await Promise.all([fetch(base + "/manifest.json").then((r) => r.json()), fetch(base + "/collections.json").then((r) => r.json()).catch(() => [])]);
+            if (dessine !== lien) return;
+            const collections = Array.isArray(colls) ? colls : (colls.collections || []);
+            collections.filter((c) => c.pinToTop).forEach(tuiles);
+            const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { io.unobserve(e.target); e.target._charge(); } }), { root: E.rangees, rootMargin: "300px 0px" });
+            (manifest.catalogs || []).filter((c) => c.showInHome !== false && String(c.id).startsWith("accueil-")).forEach((c) => {
+              const { section, piste } = E.rangee(c.name);
+              for (let k = 0; k < 8; k++) piste.append(NV.carte(null));
+              section._charge = () => fetch(base + "/catalog/" + c.type + "/" + c.id + ".json").then((x) => x.json()).then((d) => {
+                const metas = (d.metas || []).filter((m) => m.poster);
+                piste.textContent = "";
+                if (!metas.length) { section.remove(); return; }
+                metas.slice(0, 20).forEach((m) => piste.append(NV.carte(m)));
+              }).catch(() => section.remove());
+              io.observe(section);
+            });
+            collections.filter((c) => !c.pinToTop).forEach(tuiles);
+            E.pret();
+            if (ecran.querySelector(".nvo-menu")) E.retour();   // le menu, ouvert de lui-même, cacherait l'accueil
+          } catch (e) {
+            const { piste } = E.rangee("Aperçu indisponible"); piste.append(NV.mkd("p", "vide", "Vérifie ta connexion et réessaie."));
+          }
+          // L'aperçu ne prend pas le focus de la page (champ en cours de saisie…).
+          if (focus && focus.isConnected && !ecran.contains(focus)) focus.focus({ preventScroll: true });
+        };
+        // Dessiné quand la carte arrive à l'écran ; redessiné quand le lien change (personnalisation).
+        let vu = false;
+        if ("IntersectionObserver" in window) new IntersectionObserver((es, o) => { if (es.some((e) => e.isIntersecting)) { o.disconnect(); vu = true; dessiner(); } }, { rootMargin: "200px 0px" }).observe(ecran);
+        else { vu = true; setTimeout(dessiner, 0); }
+        if (code) new MutationObserver(() => { if (vu) dessiner(); else texteIntro(); }).observe(code, { childList: true, characterData: true, subtree: true });
         bulle(intro, "<p>Les rangées d'accueil en français (saison, tendances, nouveautés sur tes plateformes…), les catalogues de Découvrir, la recherche et les fiches des films et séries, avec les collections et les affiches.</p>");
         const option = el("p", "nvs-option", "<b>Facultatif</b> · choisir tes rangées, tes plateformes et tes filtres : ");
         if (perso) { perso.textContent = "Personnaliser mon catalogue"; perso.classList.add("nvs-secondaire"); option.appendChild(perso); }
-        const d = avance(cat, "Mode avancé : l'ajouter à la main");
+        const d = avance(cat);
         if (seance) seance.remove();
-        cat.append(intro);
-        if (boite) cat.append(boite);
-        if (note) cat.append(note);
-        cat.append(option, d);
+        cat.append(intro, ecran, option, d);
         cat._nvsSeance = seance;
       }
 
@@ -249,7 +293,7 @@ const JS = String.raw`(() => {
         if (!a) return;
         const page = (a.querySelector("ol a[href]") || {}).href || "";
         const reglages = a.querySelector("[data-consigne]"), cleAd = a.querySelector("[data-cle-ad]");
-        const d = avance(a, "Mode avancé : l'ajouter à la main");
+        const d = avance(a);
         const ol = el("ol", "nvs-cat nvs-etapes",
           "<li>Ouvre " + (page ? "<a href=\"" + page + "\" target=\"_blank\" rel=\"noopener\">la page de " + nom + "</a>" : "la page de " + nom) + ", connecte AllDebrid (clé API ou code) et règle tes préférences selon ton appareil.</li>"
           + "<li>Copie le lien d'installation de " + nom + " et colle-le ici :"
@@ -269,7 +313,7 @@ const JS = String.raw`(() => {
       // 4. OpenSubtitles : un lien commun à tous, envoyé si la case est cochée.
       const os = carte(/^\s*OpenSubtitles/);
       if (os) {
-        const d = avance(os, "Mode avancé : l'ajouter à la main");
+        const d = avance(os);
         const p = el("label", "nvs-case", "<input type=\"checkbox\"> <span>Envoyer aussi OpenSubtitles (les sous-titres français)</span>");
         const c = p.querySelector("input");
         c.checked = lu("nvs-os") === "1";
@@ -320,7 +364,7 @@ const JS = String.raw`(() => {
     document.querySelectorAll("section.act p, section.act small, section.act .note").forEach((p) => {
       if (!p.isConnected || p.closest(HORS) || p.parentElement.closest("p")) return;
       // Rien à piocher dans ce qui est masqué sur cette copie (volets « Avec Claude », étapes retirées, addons retirés).
-      if (p.closest('[data-pane="claude"], .nvs-cache, article[style*="none"]')) return;
+      if (p.closest('[data-pane="claude"], .nvs-cache, .nvs-cache-carte, article[style*="none"]')) return;
       if (p.matches(".warn,.consigne,.tagline,[class*=\"nvs-\"]") || p.hasAttribute("id")) return;   // nvs- : ajouts de ce mode, jamais rangés
       if ([...p.attributes].some((a) => a.name.startsWith("data-"))) return;
       if (estAction(p) || imperatif(p.textContent)) return;
@@ -335,7 +379,7 @@ const JS = String.raw`(() => {
     // 2. Dans chaque étape numérotée : on garde la consigne, les phrases d'explication passent dans un « ? ».
     const COUPE = /([.!?…])s+(?=[A-ZÀÂÉÈÊÎÔÛÇ«(])/;
     document.querySelectorAll("section.act li").forEach((li) => {
-      if (li.closest("details,.nv,.pupitre,.photo-diag,.trousseau,.reclames,.modes")) return;
+      if (li.closest(".nvs-cache-carte,details,.nv,.pupitre,.photo-diag,.trousseau,.reclames,.modes")) return;
       if (li.querySelector("button,input,select,textarea,code,.copy,[id],[data-copy],[hidden],ol,ul")) return;
       // Découpe en phrases sans casser les éléments (liens, gras, chemins).
       const phrases = [[]];
