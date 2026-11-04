@@ -97,6 +97,8 @@ export function avecAutresAddons(page) {
   const partieAddon = /\["e-addon", "L'addon", [^\n]*\n/;
   if (!caseAddon.test(page) || !page.includes(finCases) || !page.includes(envoiColl) || !partieAddon.test(page)) return page;
   const out = page
+    // La salle 2 ne s'ouvre que depuis le guide : pas de lien direct vers elle ici.
+    .replace(/ · <a href="[^"]*\/configure">Ta programmation \(salle 2\)<\/a>/, "")
     .replace(caseAddon, (m) => m + "\n      " + CASES)
     .replace(finCases, () => finCases + CHAMPS)
     .replace(envoiColl, () => ENVOI + envoiColl)
