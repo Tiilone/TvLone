@@ -8,6 +8,14 @@ html.nvs-on .secret, html.nvs-on #reclames, html.nvs-on #r-dots, html.nvs-on .en
 html.nvs-on .hero > p:not(.tagline):not(.nvs-barre) { display: none !important; }
 html.nvs-on .act ol > li, html.nvs-on .act ul > li { margin-bottom: .45em; }
 .nvs-envoi { margin: 14px 0 10px; }
+.nvs-etapes { margin: 8px 0 4px; }
+.nvs-etapes .consigne { margin: .4em 0 0; font-size: .9rem; }
+.nvs-lumio-champ { display: block; width: 100%; box-sizing: border-box; margin: 8px 0 2px; padding: 10px 12px; border-radius: 8px;
+  border: 1.5px solid rgba(255, 207, 107, .45); background: rgba(0, 0, 0, .25); color: var(--cream, #f5ead8); font: 400 .9rem/1.3 var(--body, system-ui, sans-serif); }
+.nvs-lumio-champ:focus { outline: none; border-color: var(--bulb, #ffcf6b); }
+.nvs-avance { margin-top: 10px; }
+.nvs-avance > summary { cursor: pointer; font-weight: 700; color: var(--bulb, #ffcf6b); text-decoration: underline; text-underline-offset: 3px; }
+.nvs-avance[open] > summary { margin-bottom: 8px; }
 .nvs-envoyer { display: inline-block; padding: 12px 26px; border-radius: 999px; background: var(--bulb, #ffcf6b); color: var(--ink, #2a1a14) !important;
   font-weight: 800; font-size: 1.05rem; text-decoration: none !important; box-shadow: 0 6px 18px rgba(255, 207, 107, .25); }
 .nvs-envoyer:hover { filter: brightness(1.06); }
@@ -206,14 +214,42 @@ const JS = String.raw`(() => {
       // déjà branché l'envoi du lien du catalogue (perso s'il a été personnalisé) et du lien des affiches.
       const envoi = document.querySelector("a[data-compte-nuvio]");
       if (envoi) {
-        const consigne = document.createElement("p");
-        consigne.className = "nvs-cat";
-        consigne.innerHTML = "Appuie sur <b>Envoyer ce catalogue dans Nuvio</b> et connecte ton compte Nuvio : le Catalogue FR, ses collections et ses affiches arrivent tout seuls. Les addons suivants (Lumio…) s'ajoutent à la main.";
+        // Lumio part avec : son lien (perso, avec la clé AllDebrid) est collé ici et gardé dans ce navigateur, sous
+        // la même clé que la page d'envoi (worker/compte-lumio.js), qui le reprend.
+        const consigne = document.createElement("ol");
+        consigne.className = "nvs-cat nvs-etapes";
+        consigne.innerHTML = "<li>Ouvre <a href=\"https://mylumio.tv/configure\" target=\"_blank\" rel=\"noopener\">la page de Lumio</a>, connecte AllDebrid (clé API ou code) et règle tes préférences selon ton appareil.</li>"
+          + "<li>Copie le lien d'installation de Lumio (bouton en bas à droite) et colle-le ici :"
+          + "<input type=\"url\" class=\"nvs-lumio-champ\" inputmode=\"url\" autocomplete=\"off\" spellcheck=\"false\" placeholder=\"https://mylumio.tv/…/manifest.json\" aria-label=\"Ton lien Lumio\"></li>"
+          + "<li>Appuie sur <b>Envoyer dans Nuvio</b> et connecte ton compte Nuvio : le Catalogue FR, Lumio, les collections et les affiches arrivent tout seuls.</li>";
+        const lumioCarte = [...document.querySelectorAll("#addons article.addon")].find((x) => /^\s*Lumio/.test((x.querySelector("h3") || {}).textContent || ""));
+        const reglages = lumioCarte && lumioCarte.querySelector("[data-consigne]");
+        if (reglages) consigne.firstElementChild.appendChild(reglages);
+        const q1 = bouton();
+        q1._nvs.push("<p>Lumio donne les sources des films et séries (en français, déjà indexées). Exclus les qualités et formats que ton appareil ne sait pas lire : sinon écran vert ou violet, image saccadée ou pas de son.</p>");
+        consigne.firstElementChild.insertBefore(q1, reglages || null);
+        const q2 = bouton();
+        q2._nvs.push("<p>Ce lien contient ta clé AllDebrid : il reste dans ce navigateur, pour la page d'envoi. Pas de lien ? Lumio est simplement laissé de côté : décoche-le sur la page d'envoi.</p>");
+        consigne.children[1].insertBefore(q2, consigne.querySelector(".nvs-lumio-champ"));
+        const champ = consigne.querySelector(".nvs-lumio-champ");
+        try { champ.value = localStorage.getItem("nvs-lumio") || ""; } catch (e) {}
+        champ.addEventListener("input", () => { try { localStorage.setItem("nvs-lumio", champ.value.trim()); } catch (e) {} });
         const zone = document.createElement("p");
         zone.className = "nvs-envoi";
-        envoi.textContent = "Envoyer ce catalogue dans Nuvio";
+        envoi.textContent = "Envoyer dans Nuvio";
         envoi.className = "nvs-envoyer";
         zone.appendChild(envoi);
+        // Carte Lumio : renvoie à l'envoi ci-dessus ; ses étapes d'origine passent dans un « Mode avancé » replié.
+        if (lumioCarte) {
+          const avance = document.createElement("details");
+          avance.className = "nvs-avance";
+          avance.innerHTML = "<summary>Mode avancé : l'ajouter à la main</summary>";
+          [...lumioCarte.children].forEach((c) => { if (!c.matches("header")) avance.appendChild(c); });
+          const p = document.createElement("p");
+          p.className = "nvs-lumio-note";
+          p.innerHTML = "Lumio part avec le bouton <b>Envoyer dans Nuvio</b> de la carte Catalogue FR, juste au-dessus : colle son lien dans le champ prévu.";
+          lumioCarte.append(p, avance);
+        }
         const option = document.createElement("p");
         option.className = "nvs-option";
         option.innerHTML = "<b>Facultatif</b> · choisir tes rangées, tes plateformes et tes filtres avant d'envoyer : ";
@@ -242,7 +278,7 @@ const JS = String.raw`(() => {
       if (tag.matches(".nvt-pourquoi")) { tag.replaceWith(q); }
       else { tag.after(q); }
       const avant = q.previousSibling;
-      if (avant && avant.nodeType === 3) avant.nodeValue = avant.nodeValue.replace(/\s+$/, "");
+      if (avant && avant.nodeType === 3) avant.nodeValue = avant.nodeValue.replace(/s+$/, "");
     });
 
     if (!simple) return;
@@ -264,7 +300,7 @@ const JS = String.raw`(() => {
     });
 
     // 2. Dans chaque étape numérotée : on garde la consigne, les phrases d'explication passent dans un « ? ».
-    const COUPE = /([.!?…])\s+(?=[A-ZÀÂÉÈÊÎÔÛÇ«(])/;
+    const COUPE = /([.!?…])s+(?=[A-ZÀÂÉÈÊÎÔÛÇ«(])/;
     document.querySelectorAll("section.act li").forEach((li) => {
       if (li.closest("details,.nv,.pupitre,.photo-diag,.trousseau,.reclames,.modes")) return;
       if (li.querySelector("button,input,select,textarea,code,.copy,[id],[data-copy],[hidden],ol,ul")) return;
@@ -277,7 +313,7 @@ const JS = String.raw`(() => {
           const fin = m.index + m[1].length;
           phrases[phrases.length - 1].push(document.createTextNode(reste.slice(0, fin)));
           phrases.push([]);
-          reste = reste.slice(fin).replace(/^\s+/, "");
+          reste = reste.slice(fin).replace(/^s+/, "");
         }
         if (reste) phrases[phrases.length - 1].push(document.createTextNode(reste));
       });
@@ -292,7 +328,7 @@ const JS = String.raw`(() => {
         (action ? garde : range).push(ph);
       });
       // « Fais ceci : parce que… » : la justification après les deux-points part aussi dans la bulle.
-      const RAISON = /\s:\s+((?:sinon|sans |activé|désactivé|il |elle |ils |elles |ça |c'est |le guide |nuvio |on |pas besoin )[\s\S]+)$/i;
+      const RAISON = /s:s+((?:sinon|sans |activé|désactivé|il |elle |ils |elles |ça |c'est |le guide |nuvio |on |pas besoin )[s\S]+)$/i;
       garde.forEach((ph) => {
         const der = ph[ph.length - 1];
         if (!der || der.nodeType !== 3) return;
@@ -344,7 +380,7 @@ function retirerEtapes(page) {
     if (retires.includes(n)) { let p = n - 1; while (retires.includes(p)) p--; return nouveau(p); }
     return n - retires.filter((r) => r < n).length;
   };
-  page = page.replace(/<section class="act[^"]*" id="[^"]+">\s*<header><span class="num">(\d+)<\/span>/g,
+  page = page.replace(/<section class="act[^"]*" id="[^"]+">s*<header><span class="num">(\d+)<\/span>/g,
     (m, n) => m.replace(`>${n}<`, ">" + String(nouveau(Number(n))).padStart(n.length, "0") + "<"));
   page = page.replace(/([ée]tapes? )(\d{1,2})\b/g, (m, mot, n) => mot + nouveau(Number(n)));
   page = page.replace('<span id="reel-total">12</span>', `<span id="reel-total">${String(12 - retires.length).padStart(2, "0")}</span>`);
