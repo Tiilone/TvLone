@@ -10,10 +10,13 @@ html.nvs-on .act ol > li, html.nvs-on .act ul > li { margin-bottom: .45em; }
 .nvs-envoi { margin: 14px 0 10px; }
 .nvs-etapes { margin: 8px 0 4px; }
 .nvs-etapes .consigne { margin: .4em 0 0; font-size: .9rem; }
-.nvs-lumio-champ { display: block; width: 100%; box-sizing: border-box; margin: 8px 0 2px; padding: 10px 12px; border-radius: 8px;
+.nvs-lien-champ { display: block; width: 100%; box-sizing: border-box; margin: 8px 0 2px; padding: 10px 12px; border-radius: 8px;
   border: 1.5px solid rgba(255, 207, 107, .45); background: rgba(0, 0, 0, .25); color: var(--cream, #f5ead8); font: 400 .9rem/1.3 var(--body, system-ui, sans-serif); }
-.nvs-lumio-champ:focus { outline: none; border-color: var(--bulb, #ffcf6b); }
+.nvs-lien-champ:focus { outline: none; border-color: var(--bulb, #ffcf6b); }
 .nvs-avance { margin-top: 10px; }
+.nvs-case { display: flex; gap: 10px; align-items: center; margin: 8px 0; font-weight: 600; cursor: pointer; }
+.nvs-case input { width: 1.2em; height: 1.2em; accent-color: var(--bulb, #ffcf6b); }
+.nvs-fin .seance { margin-top: 14px; }
 .nvs-avance > summary { cursor: pointer; font-weight: 700; color: var(--bulb, #ffcf6b); text-decoration: underline; text-underline-offset: 3px; }
 .nvs-avance[open] > summary { margin-bottom: 8px; }
 .nvs-envoyer { display: inline-block; padding: 12px 26px; border-radius: 999px; background: var(--bulb, #ffcf6b); color: var(--ink, #2a1a14) !important;
@@ -202,69 +205,99 @@ const JS = String.raw`(() => {
       li.appendChild(ul);
     });
 
-    // Étape 6, carte Catalogue FR : seulement « Personnaliser mon catalogue », puis « Tout envoyer dans Nuvio »
-    // sur le billet de la salle 2 (addon, collections et affiches d'un coup). Le reste est masqué, pas supprimé :
-    // la page met encore à jour le lien, la séance…
-    document.querySelectorAll("#addons article.addon").forEach((a) => {
-      const h = a.querySelector("h3");
-      const btn = a.querySelector(".perso-actions");
-      if (!h || !/^\s*Catalogue FR/.test(h.textContent) || !btn) return;
-      [...a.children].forEach((c) => { if (c !== btn && !c.matches("header")) c.style.display = "none"; });
-      // Le lien « Tout envoyer dans Nuvio » de l'étape des collections (retirée) : déplacé tel quel, la page y a
-      // déjà branché l'envoi du lien du catalogue (perso s'il a été personnalisé) et du lien des affiches.
-      const envoi = document.querySelector("a[data-compte-nuvio]");
-      if (envoi) {
-        // Lumio part avec : son lien (perso, avec la clé AllDebrid) est collé ici et gardé dans ce navigateur, sous
-        // la même clé que la page d'envoi (worker/compte-lumio.js), qui le reprend.
-        const consigne = document.createElement("ol");
-        consigne.className = "nvs-cat nvs-etapes";
-        consigne.innerHTML = "<li>Ouvre <a href=\"https://mylumio.tv/configure\" target=\"_blank\" rel=\"noopener\">la page de Lumio</a>, connecte AllDebrid (clé API ou code) et règle tes préférences selon ton appareil.</li>"
-          + "<li>Copie le lien d'installation de Lumio (bouton en bas à droite) et colle-le ici :"
-          + "<input type=\"url\" class=\"nvs-lumio-champ\" inputmode=\"url\" autocomplete=\"off\" spellcheck=\"false\" placeholder=\"https://mylumio.tv/…/manifest.json\" aria-label=\"Ton lien Lumio\"></li>"
-          + "<li>Appuie sur <b>Envoyer dans Nuvio</b> et connecte ton compte Nuvio : le Catalogue FR, Lumio, les collections et les affiches arrivent tout seuls.</li>";
-        const lumioCarte = [...document.querySelectorAll("#addons article.addon")].find((x) => /^\s*Lumio/.test((x.querySelector("h3") || {}).textContent || ""));
-        const reglages = lumioCarte && lumioCarte.querySelector("[data-consigne]");
-        if (reglages) consigne.firstElementChild.appendChild(reglages);
-        const q1 = bouton();
-        q1._nvs.push("<p>Lumio donne les sources des films et séries (en français, déjà indexées). Exclus les qualités et formats que ton appareil ne sait pas lire : sinon écran vert ou violet, image saccadée ou pas de son.</p>");
-        consigne.firstElementChild.insertBefore(q1, reglages || null);
-        const q2 = bouton();
-        q2._nvs.push("<p>Ce lien contient ta clé AllDebrid : il reste dans ce navigateur, pour la page d'envoi. Pas de lien ? Lumio est simplement laissé de côté : décoche-le sur la page d'envoi.</p>");
-        consigne.children[1].insertBefore(q2, consigne.querySelector(".nvs-lumio-champ"));
-        const champ = consigne.querySelector(".nvs-lumio-champ");
-        try { champ.value = localStorage.getItem("nvs-lumio") || ""; } catch (e) {}
-        champ.addEventListener("input", () => { try { localStorage.setItem("nvs-lumio", champ.value.trim()); } catch (e) {} });
-        const zone = document.createElement("p");
-        zone.className = "nvs-envoi";
-        envoi.textContent = "Envoyer dans Nuvio";
-        envoi.className = "nvs-envoyer";
-        zone.appendChild(envoi);
-        // Carte Lumio : renvoie à l'envoi ci-dessus ; ses étapes d'origine passent dans un « Mode avancé » replié.
-        if (lumioCarte) {
-          const avance = document.createElement("details");
-          avance.className = "nvs-avance";
-          avance.innerHTML = "<summary>Mode avancé : l'ajouter à la main</summary>";
-          [...lumioCarte.children].forEach((c) => { if (!c.matches("header")) avance.appendChild(c); });
-          const p = document.createElement("p");
-          p.className = "nvs-lumio-note";
-          p.innerHTML = "Lumio part avec le bouton <b>Envoyer dans Nuvio</b> de la carte Catalogue FR, juste au-dessus : colle son lien dans le champ prévu.";
-          lumioCarte.append(p, avance);
-        }
-        const option = document.createElement("p");
-        option.className = "nvs-option";
-        option.innerHTML = "<b>Facultatif</b> · choisir tes rangées, tes plateformes et tes filtres avant d'envoyer : ";
-        const perso = btn.querySelector("[data-perso-ouvrir]");
-        if (perso) { perso.textContent = "Personnalisation avancée"; perso.classList.add("nvs-secondaire"); option.appendChild(perso); }
-        btn.style.display = "none";
-        btn.before(consigne, zone, option);
-      } else {
-        const consigne = document.createElement("ol");
-        consigne.className = "nvs-cat";
-        consigne.innerHTML = "<li>Appuie sur <b>Personnaliser mon catalogue</b> et choisis tes rangées, tes plateformes et tes filtres.</li>"
-          + "<li>Sur ton billet, appuie sur <b>Tout envoyer dans Nuvio</b> : l'addon, les collections et les affiches arrivent tout seuls.</li>";
-        btn.before(consigne);
+    // Étape 6 : une carte par addon, puis une carte « Envoyer dans Nuvio » qui envoie tout d'un coup (page /compte-nuvio,
+    // voir worker/compte-autres.js). Les liens perso (Lumio, WAStream) sont collés dans leur carte et gardés dans ce
+    // navigateur, sous les clés que la page d'envoi reprend. Sans lien, l'addon est laissé de côté. Le contenu
+    // d'origine des cartes est déplacé dans un « Mode avancé » replié, pas supprimé : la page le tient encore à jour.
+    (() => {
+      const cartes = [...document.querySelectorAll("#addons article.addon")];
+      const carte = (re) => cartes.find((x) => re.test((x.querySelector("h3") || {}).textContent || ""));
+      const cat = carte(/^\s*Catalogue FR/), envoi = document.querySelector("a[data-compte-nuvio]");
+      if (!cat || !envoi || !cat.querySelector(".perso-actions")) return;
+      const lu = (k) => { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } };
+      const garde = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+      const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+      const avance = (a, titre) => {
+        const d = el("details", "nvs-avance", "<summary>" + titre + "</summary>");
+        [...a.children].forEach((c) => { if (!c.matches("header")) d.appendChild(c); });
+        return d;
+      };
+      const bulle = (cible, html, avant) => { const q = bouton(); q._nvs.push(html); cible.insertBefore(q, avant || null); };
+      let resume = () => {};
+
+      // 1. Catalogue FR : son lien (les réglages conseillés, ou le lien perso), et la personnalisation en option.
+      {
+        const boite = cat.querySelector(".copy");
+        const perso = cat.querySelector(".perso-actions [data-perso-ouvrir]");
+        const note = cat.querySelector("[data-perso]");
+        const seance = cat.querySelector("#seance");
+        const intro = el("p", "nvs-cat", "Ton catalogue est déjà réglé avec les réglages conseillés : rien à faire ici. Il part avec le bouton <b>Envoyer dans Nuvio</b> de l'étape 5.");
+        bulle(intro, "<p>Les rangées d'accueil en français (saison, tendances, nouveautés sur tes plateformes…), les catalogues de Découvrir, la recherche et les fiches des films et séries, avec les collections et les affiches.</p>");
+        const option = el("p", "nvs-option", "<b>Facultatif</b> · choisir tes rangées, tes plateformes et tes filtres : ");
+        if (perso) { perso.textContent = "Personnaliser mon catalogue"; perso.classList.add("nvs-secondaire"); option.appendChild(perso); }
+        const d = avance(cat, "Mode avancé : l'ajouter à la main");
+        if (seance) seance.remove();
+        cat.append(intro);
+        if (boite) cat.append(boite);
+        if (note) cat.append(note);
+        cat.append(option, d);
+        cat._nvsSeance = seance;
       }
-    });
+
+      // 2 et 3. Lumio, WAStream : leur page, les réglages pour ton appareil, puis le champ du lien.
+      const avecLien = (a, cle, nom, exemple) => {
+        if (!a) return;
+        const page = (a.querySelector("ol a[href]") || {}).href || "";
+        const reglages = a.querySelector("[data-consigne]"), cleAd = a.querySelector("[data-cle-ad]");
+        const d = avance(a, "Mode avancé : l'ajouter à la main");
+        const ol = el("ol", "nvs-cat nvs-etapes",
+          "<li>Ouvre " + (page ? "<a href=\"" + page + "\" target=\"_blank\" rel=\"noopener\">la page de " + nom + "</a>" : "la page de " + nom) + ", connecte AllDebrid (clé API ou code) et règle tes préférences selon ton appareil.</li>"
+          + "<li>Copie le lien d'installation de " + nom + " et colle-le ici :"
+          + "<input type=\"url\" class=\"nvs-lien-champ\" inputmode=\"url\" autocomplete=\"off\" spellcheck=\"false\" placeholder=\"" + exemple + "\" aria-label=\"Ton lien " + nom + "\"></li>");
+        const [l1, l2] = ol.children, champ = ol.querySelector("input");
+        bulle(l1, "<p>Exclus les qualités et formats que ton appareil ne sait pas lire : sinon écran vert ou violet, image saccadée ou pas de son.</p>");
+        if (reglages) l1.appendChild(reglages);
+        if (cleAd) l1.appendChild(cleAd);
+        bulle(l2, "<p>Ce lien contient ta clé AllDebrid : il reste dans ce navigateur, pour l'envoi de l'étape 5. Pas de lien ? " + nom + " est laissé de côté.</p>", champ);
+        champ.value = lu(cle);
+        champ.addEventListener("input", () => { garde(cle, champ.value.trim()); resume(); });
+        a.append(ol, d);
+      };
+      avecLien(carte(/^\s*Lumio/), "nvs-lumio", "Lumio", "https://mylumio.tv/…/manifest.json");
+      avecLien(carte(/^\s*WAStream/), "nvs-wastream", "WAStream", "https://wastream.noplay.fr/…/manifest.json");
+
+      // 4. OpenSubtitles : un lien commun à tous, envoyé si la case est cochée.
+      const os = carte(/^\s*OpenSubtitles/);
+      if (os) {
+        const d = avance(os, "Mode avancé : l'ajouter à la main");
+        const p = el("label", "nvs-case", "<input type=\"checkbox\"> <span>Envoyer aussi OpenSubtitles (les sous-titres français)</span>");
+        const c = p.querySelector("input");
+        c.checked = lu("nvs-os") === "1";
+        c.addEventListener("change", () => { garde("nvs-os", c.checked ? "1" : "0"); resume(); });
+        const apres = el("p", "nvs-option", "Puis dans le lecteur : Paramètres → Sous-titres → Langue préférée → Français.");
+        os.append(p, apres, d);
+      }
+
+      // 5. Envoyer dans Nuvio : ce qui part, le bouton, puis la vérification (le mot de passe de la séance).
+      const fin = el("article", "addon nvs-fin", "<header><h3>Envoyer dans Nuvio</h3><span class=\"role\">Tout d'un coup</span></header>");
+      const liste = el("p", "nvs-cat");
+      resume = () => {
+        const noms = ["Catalogue FR (avec ses collections et ses affiches)"];
+        if (lu("nvs-lumio")) noms.push("Lumio");
+        if (lu("nvs-wastream")) noms.push("WAStream");
+        if (lu("nvs-os") === "1") noms.push("OpenSubtitles");
+        liste.innerHTML = "Appuie sur <b>Envoyer dans Nuvio</b> et connecte ton compte Nuvio. Partira : <b>" + noms.join("</b>, <b>") + "</b>.";
+      };
+      resume();
+      bulle(liste, "<p>Un addon sans lien est laissé de côté : colle son lien dans sa carte pour l'ajouter. Tes autres addons restent dans Nuvio.</p>");
+      const zone = el("p", "nvs-envoi");
+      envoi.textContent = "Envoyer dans Nuvio";
+      envoi.className = "nvs-envoyer";
+      zone.appendChild(envoi);
+      fin.append(liste, zone);
+      if (cat._nvsSeance) fin.appendChild(cat._nvsSeance);
+      (os || cartes[cartes.length - 1]).after(fin);
+    })();
 
     // Étape des réglages conseillés, version texte : le « Pourquoi » de chaque réglage passe dans un « ? »
     // (et l'explication d'un « À adapter » aussi, l'étiquette restant visible).

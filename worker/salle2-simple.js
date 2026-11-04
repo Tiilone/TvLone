@@ -82,7 +82,7 @@ export function avecSalle2Simple(page) {
         <p class="nvs-titre">Avec un compte Nuvio</p>
         <ol class="steps-howto">
           <li><span><b>Connecte ta TV à ton compte Nuvio</b> et ouvre Nuvio une fois.${q("Sans ça, le lien des affiches n'arrive pas sur la TV (l'addon et les collections, si). Pareil sur chaque appareil : téléphone, tablette, ordinateur.")}</span></li>
-          <li><span>Sur ton billet, appuie sur <b>Tout envoyer dans Nuvio</b>.${q("L'addon, Lumio, les collections, l'ordre de l'accueil et les affiches arrivent tout seuls sur tes appareils connectés au compte. Seul le lien de Lumio est à coller une fois sur la page d'envoi (il contient ta clé AllDebrid) : il est ensuite gardé dans ce navigateur.")}</span></li>
+          <li><span>Sur ton billet, appuie sur <b>Tout envoyer dans Nuvio</b>.${q("L'addon, les collections, l'ordre de l'accueil et les affiches arrivent tout seuls sur tes appareils connectés au compte. Lumio, WAStream et OpenSubtitles partent aussi si tu as collé leur lien (dans le guide ou sur la page d'envoi) ; sinon, seul le Catalogue FR part.")}</span></li>
           <li><span><b>Mets Nuvio en français</b> : Paramètres → Langue de l'application → Français, puis Paramètres → Intégrations → TMDB → Langue → Français.${q(`Ces réglages ne passent pas par le compte : ils se font sur chaque appareil. Dans TMDB, désactive aussi Bandes-annonces, Informations de base, Détails et Illustrations (détails à l'étape 3 du <a href="/guide#francais">guide</a>).`)}</span></li>
         </ol>
         <details class="nvs-sans">
