@@ -378,7 +378,7 @@ const JS = String.raw`(() => {
         const c = p.querySelector("input");
         c.checked = lu("nvs-os") === "1";
         c.addEventListener("change", () => { garde("nvs-os", c.checked ? "1" : "0"); resume(); });
-        const apres = el("p", "nvs-option", "Puis dans le lecteur : Paramètres → Sous-titres → Langue préférée → Français.");
+        const apres = el("p", "nvs-option", "Puis dans le lecteur : Paramètres → Sous-titres → Langue préférée → Forcé.");
         os.append(p, apres, d);
       }
 

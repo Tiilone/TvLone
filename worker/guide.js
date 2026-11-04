@@ -499,7 +499,7 @@ ${secretsHTML("guide")}
         <header><h3>OpenSubtitles v3 <span class="opt">Facultatif</span></h3><span class="role">Sous-titres</span></header>
         <p>Les sous-titres français pour tout le reste. Pas de compte nécessaire : colle ce lien.</p>
         ${addonBox("u-os", LINKS.opensubtitles)}
-        <p>Puis dans le lecteur : <span class="path">Paramètres → Sous-titres → Langue préférée → Français</span>.</p>
+        <p>Puis dans le lecteur : <span class="path">Paramètres → Sous-titres → Langue préférée → Forcé</span>.</p>
       </article>
     </div>
     <p class="note"><b>Plusieurs profils dans Nuvio ?</b> Installe les addons sur le profil principal. Pour chacun des autres : <span class="path">Paramètres → Profils → Gérer les profils</span>, choisis le profil, <b>Modifier</b>, puis active <b>Utiliser les addons principaux</b>. Ils partagent alors les mêmes addons, sans rien réinstaller.</p>
