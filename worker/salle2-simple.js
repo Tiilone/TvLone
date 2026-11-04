@@ -62,26 +62,8 @@ const JS = `(() => {
 
 const q = (html) => `<button type="button" class="nvs-q" aria-label="Pourquoi ?" aria-expanded="false" aria-describedby="nvs-bulle">?</button><span class="nvs-txt">${html}</span>`;
 
-// Sur le site, la salle 2 ne s'ouvre que depuis le guide (fenêtre « Personnaliser mon catalogue », dans un cadre) :
-// arrivée par un lien du site (hall, autre page), elle renvoie au guide, à l'étape 6, et lui passe la programmation
-// de l'adresse (sessionStorage « programmation », lue par le guide) : rien n'est perdu. Ouverte de l'extérieur
-// (bouton « Configurer » de l'addon dans Nuvio, adresse tapée ou en favori : pas de page d'origine), elle reste là
-// pour régler ses catalogues rapidement.
-const VERS_GUIDE = `<script>(function () {
-  if (window.top !== window.self) return;
-  var depuisLeSite = false;
-  // (venue de la salle 2 elle-même, rechargée ou rouverte depuis elle : on y reste)
-  try { var r = new URL(document.referrer); depuisLeSite = r.origin === location.origin && !/[/]configure$/.test(r.pathname); } catch (e) {}
-  if (!depuisLeSite) return;
-  var p = location.pathname.replace(/[/]$/, "");
-  if (!/[/]configure$/.test(p)) p += "/configure";
-  if (/^[/][A-Za-z0-9_-]+[/]configure$/.test(p)) { try { sessionStorage.setItem("programmation", location.origin + p); } catch (e) {} }
-  location.replace(location.origin + "/guide#addons");
-})();</script>`;
-
 /** Réécrit l'encadré « Mode d'emploi » de la salle 2. Page inchangée si la section n'a plus la forme attendue. */
 export function avecSalle2Simple(page) {
-  page = page.includes("<head>") ? page.replace("<head>", () => "<head>" + VERS_GUIDE) : VERS_GUIDE + page;
   const ouv = '<section class="act" id="s-mode">';
   const i = page.indexOf(ouv);
   const fin = i < 0 ? -1 : page.indexOf("</section>", i);

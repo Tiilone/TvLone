@@ -4,7 +4,6 @@
 // Seul ce mode est proposé : le guide complet n'est plus accessible.
 
 const CSS = `
-html.nvs-on .salles a[data-programmation], html.nvs-on .raccourci, html.nvs-on .sortie,
 html.nvs-on .secret, html.nvs-on #reclames, html.nvs-on #r-dots, html.nvs-on .entracte,
 html.nvs-on .hero > p:not(.tagline):not(.nvs-barre) { display: none !important; }
 html.nvs-on .act ol > li, html.nvs-on .act ul > li { margin-bottom: .45em; }
@@ -223,17 +222,6 @@ const JS = String.raw`(() => {
       });
       li.appendChild(ul);
     });
-
-    // La salle 2 ne s'ouvre que par-dessus le guide : un lien du guide vers elle ouvre la fenêtre « Personnaliser
-    // mon catalogue » (ouvrirSalle2, guide.js) au lieu de quitter la page.
-    document.addEventListener("click", (e) => {
-      const a = e.target.closest && e.target.closest("a[href]");
-      if (!a || typeof ouvrirSalle2 !== "function" || a.closest(".salle2")) return;
-      let u; try { u = new URL(a.href); } catch (x) { return; }
-      if (u.origin !== location.origin || !/[/]configure$/.test(u.pathname)) return;
-      e.preventDefault(); e.stopPropagation();
-      ouvrirSalle2({ currentTarget: a });
-    }, true);
 
     // Étape 6 : une carte par addon, puis une carte « Envoyer dans Nuvio » qui envoie tout d'un coup (page /compte-nuvio,
     // voir worker/compte-autres.js). Les liens perso (Lumio, WAStream) sont collés dans leur carte et gardés dans ce

@@ -1073,7 +1073,7 @@ export const STAGE_JS = String.raw`
     drawSecrets.onglet = onglet;
     tPanel.innerHTML = "";
     const tabs = mk("div", "onglets"); tabs.setAttribute("role", "tablist");
-    [["secrets", "Secrets"], ["billets", "Billets"], ["salles", "Salles"]].forEach(([id, lab]) => {
+    [["secrets", "Secrets"], ["salles", "Salles"]].forEach(([id, lab]) => {
       const b = mk("button", null, lab); b.type = "button"; b.setAttribute("role", "tab"); b.setAttribute("aria-selected", String(onglet === id));
       b.addEventListener("click", (e) => { e.stopPropagation(); onglet = id; drawSecrets(); const sel = tPanel.querySelector('[aria-selected="true"]'); if (sel) sel.focus(); });
       tabs.append(b);
