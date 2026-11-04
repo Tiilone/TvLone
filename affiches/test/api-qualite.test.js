@@ -84,3 +84,22 @@ test("relais_sans_streamfusion_sans_cle", async () => {
   }
   assert.ok(!appels.some((u) => u.includes("addon.test")));
 });
+
+// Un film avec une VFQ et un FRENCH de Torrent9 : le relais lit ses dates chez TMDB. Jamais sorti en France (By Any
+// Means) ou avant le fichier américain : la VFQ en vue, l'affiche coupée en deux (choix du 2026-11-04).
+test("relais_vfq_tranchee_par_les_dates", async () => {
+  const torrentio = { streams: [
+    { name: "Torrentio\n4k", title: "By.Any.Means.2026.MULTi.VFQ.2160p.WEB.Custom.H265.mkv\n⚙️ ThePirateBay\nMulti Audio / 🇬🇧 / 🇫🇷" },
+    { name: "Torrentio\n720p", title: "By Any Means FRENCH WEBRIP 720p 2026\n⚙️ Torrent9\nMulti Audio / 🇬🇧 / 🇫🇷" }] };
+  const faux = (releases) => async (u) => {
+    const s = String(u);
+    if (s.includes("torrentio")) return Response.json(torrentio);
+    if (s.includes("api.themoviedb.org/3/movie/tt34379051")) return Response.json({ original_language: "en", release_dates: { results: releases } });
+    return new Response("?", { status: 404 });
+  };
+  const lire = async (releases) => (await makeQualite({ fetchImpl: faux(releases), env: { TMDB_API_KEY: "k" } })(new Request("https://affiches.test/api/qualite?type=movie&video=tt34379051"))).json();
+  const jamais = await lire([{ iso_3166_1: "US", release_dates: [{ release_date: "2026-10-20", type: 4 }] }]);
+  assert.deepEqual([jamais.vf, jamais.langue, jamais.quebec, jamais.vfqPossible, jamais.vfqDoute], [true, "multi", true, true, undefined]);
+  const avant = await lire([{ iso_3166_1: "FR", release_dates: [{ release_date: "2026-08-26", type: 3 }] }, { iso_3166_1: "US", release_dates: [{ release_date: "2026-10-27", type: 4 }] }]);
+  assert.deepEqual([avant.vf, avant.quebec, avant.vfqPossible, avant.vfqDoute], [true, true, true, undefined]);
+});

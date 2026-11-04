@@ -56,10 +56,12 @@ test("sans image du tout : null", () => {
   assert.equal(contenu({ ...facts, backdrop: null, textlessBackdrop: null }, extra, "landscape"), null);
 });
 
-test("note TMDB de repli à partir de 50 votes", () => {
+test("note TMDB de repli dès le premier vote", () => {
   const sansImdb = { ...extra, imdbRating: undefined };
   assert.deepEqual(contenu({ ...facts, vote: { average: 7.25, count: 120 } }, sansImdb).line, { genre: "SF", note: "7,3", annee: "2024" });
-  assert.deepEqual(contenu({ ...facts, genreIds: [18], year: "2023", vote: { average: 7.25, count: 49 } }, sansImdb).line, { genre: "Drame", annee: "2023" });
+  // The Perfect Lie, N°5 le 1er novembre 2026 : 2 votes chez TMDB, et une note quand même.
+  assert.deepEqual(contenu({ ...facts, vote: { average: 8.5, count: 2 } }, sansImdb).line, { genre: "SF", note: "8,5", annee: "2024" });
+  assert.deepEqual(contenu({ ...facts, genreIds: [18], year: "2023", vote: { average: 0, count: 0 } }, sansImdb).line, { genre: "Drame", annee: "2023" });
 });
 
 test("sans genre, sans année", () => {
@@ -110,7 +112,8 @@ test("voies éteintes", () => {
 
 test("source_tmdb", () => {
   assert.deepEqual(contenu(facts, plein, "poster", reglages("nt")).line, { genre: "SF", note: "8,1", annee: "2024" });
-  assert.deepEqual(contenu({ ...facts, vote: { average: 8.1, count: 10 } }, plein, "poster", reglages("nt")).line, { genre: "SF", annee: "2024" });
+  assert.deepEqual(contenu({ ...facts, vote: { average: 8.1, count: 10 } }, plein, "poster", reglages("nt")).line, { genre: "SF", note: "8,1", annee: "2024" });
+  assert.deepEqual(contenu({ ...facts, vote: { average: 0, count: 0 } }, plein, "poster", reglages("nt")).line, { genre: "SF", annee: "2024" });
 });
 
 test("bientot_gris_sans_note", () => {
@@ -541,4 +544,26 @@ test("annonce_sans_aucune_image", () => {
   const saga = contenu({ ...annonce, fondSaga: "/saga.jpg" });
   assert.deepEqual([saga.image, saga.fondLarge, saga.fondUni, saga.titreTexte], ["/saga.jpg", true, undefined, "Gladiator III"]);
   assert.equal(contenu({ ...annonce, fondSaga: "/saga.jpg" }, extra, "landscape").image, "/saga.jpg");
+});
+
+test("vieux_film_sans_vf", () => {
+  const vieux = { ...facts, originalLanguage: "th", releases: [{ iso_3166_1: "TH", release_dates: [{ type: 3, release_date: "2017-05-03" }] }], releaseDate: "2017-05-03", sansVf: true };
+  const c = contenu(vieux, plein);
+  assert.equal(c.gris, true);
+  assert.equal(c.statut, "SANS VF");
+});
+
+// Le doute : libellé « VFQ POSSIBLE », la date française annoncée dessous, et la moitié de l'image en noir et blanc.
+test("contenu_vfq_possible", () => {
+  const today = "2026-11-01";
+  const faits = { type: "movie", title: "Runner", firstAir: null, poster: "/p.jpg", textlessPoster: "/t.jpg", logo: "/l.png", genreIds: [], releases: [{ iso_3166_1: "US", release_dates: [{ type: 4, release_date: "2026-10-13T00:00:00.000Z" }] }], originalLanguage: "en", year: "2026" };
+  const q = { uhd: false, extra: null, vf: true, sources: 8, langue: "vf", vfqPossible: true };
+  const c = posterContent(faits, { quality: q }, "poster", undefined, today);
+  assert.equal(c.statut, "VFQ POSSIBLE");
+  assert.equal(c.moitie, true);
+  assert.equal(c.gris, false);
+  assert.equal(c.statut2, undefined);
+  const d = posterContent(faits, { quality: { ...q, vffLe: "2026-11-17" } }, "poster", undefined, today);
+  assert.equal(d.statut2, "VFF LE 17 NOV.");
+  assert.equal(posterContent(faits, { quality: { ...q, vfqPossible: false } }, "poster", undefined, today).moitie, undefined);
 });
