@@ -48,6 +48,7 @@ import { copiePage } from "./copie.js";
 import { nouveautesPage } from "./nouveautes.js";
 import { hallPage } from "./hall.js";
 import { avecHallSimple } from "./hall-simple.js";
+import { sansPageCopie, etatSansLienProjet } from "./copie-discrete.js";
 import { routeCinemeta } from "./cinemeta.js";
 import { animesDe } from "./anilist.js";
 import { wikidataDe } from "./wikidata.js";
@@ -3082,7 +3083,7 @@ const app = {
       // Rangées et recherche : par le serveur Oracle, qui les sert (worker/construire/redirections.mjs). Calculées ici, sans
       // leur cache, elles dépassent les 50 appels sortants, et le reste du bilan échoue avec elles (rouge à tort, le 2 novembre 2026).
       const appelCatalogue = ACTIF && url.hostname === SOURCE_HOST ? (p) => fetch(SERVEUR_ADDON + p) : appel;
-      return routeEtat(request, env, ctx, url, path, { version: VERSION, assets: ASSETS, affiches: AFFICHES_STATIQUES + "/maison", appel, appelCatalogue, today, saison: decorSaison(url, today) }, HEADERS);
+      return etatSansLienProjet(await routeEtat(request, env, ctx, url, path, { version: VERSION, assets: ASSETS, affiches: AFFICHES_STATIQUES + "/maison", appel, appelCatalogue, today, saison: decorSaison(url, today) }, HEADERS));
     }
 
     // Premier segment = config personnalisée, s'il n'est pas un mot réservé.
@@ -3146,6 +3147,7 @@ const app = {
     if (path === "/guide") return html(avecModeSimple(guidePage({ origin: url.origin, season: decorSaison(url, today), apercus: apercusDe(env, url.origin) })));
     if (path === "/lien") return html(lienPage({ origin: url.origin }));   // ouvert par les QR codes du guide
     if (path === "/compte-nuvio") return html(avecAutresAddons(compteNuvioPage({ origin: url.origin })));   // collections envoyées au compte Nuvio (essai)
+    if (path === "/copie") return sansPageCopie(url);   // cette copie : pas de « Monte ta propre salle » (copie-discrete.js)
     if (path === "/copie") return html(copiePage({ origin: url.origin }));   // « Monte ta propre salle » : héberger sa copie
     if (path === "/nouveautes") return html(nouveautesPage({ origin: url.origin, version: VERSION }));   // ce qui a changé, pour qui n'a pas Discord
     if (path === "/tv") return Response.redirect(NUVIO_TV_APK, 302);   // adresse courte pour Downloader : télécharge l'APK

@@ -110,3 +110,12 @@ test("copie_envoi_dans_nuvio_avec_lumio", async () => {
   assert.match(html, /const envoiAutre = async/, "/compte-nuvio : l'envoi de Lumio, WAStream et OpenSubtitles a disparu");
   for (const s of scriptsEnLigne(html)) assert.doesNotThrow(() => new Function(s), "un script en ligne de /compte-nuvio ne se lit plus");
 });
+
+test("copie_sans_renvoi_au_projet_d_origine", async () => {
+  const copie = await worker.fetch(new Request(O + "/copie"), env, ctx);
+  assert.equal(copie.status, 302, "/copie (« Monte ta propre salle ») est de nouveau accessible");
+  assert.equal(copie.headers.get("Location"), O + "/", "/copie ne renvoie plus au hall");
+  const etat = await page("/etat");
+  assert.match(etat, /<p class="note">Les tests se refont/, "/etat ne s'affiche plus comme attendu");
+  assert.doesNotMatch(etat, /github\.com\/[^"]+\/issues/, "/etat renvoie de nouveau vers la page des problèmes du projet d'origine");
+});
