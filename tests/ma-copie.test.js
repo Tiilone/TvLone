@@ -197,7 +197,8 @@ test("copie_lien_fixe_en_haut_du_billet", async () => {
   const fixe = html.indexOf('<div class="fixe" id="fixe" hidden>'), envoi = html.indexOf('<div class="compte-nuvio">'), main = html.indexOf('<details class="a-la-main" id="a-la-main">');
   assert.ok(fixe > 0 && fixe < envoi && envoi < main, "billet : le lien fixe n'est plus en haut, avant « Tout envoyer dans Nuvio » (billet-fixe.js)");
   assert.equal(html.split('id="fixe"').length - 1, 1, "billet : bloc du lien fixe en double");
-  assert.match(html, /aside\.long \{ position: sticky; top: 18px; align-self: start;[^}]*overflow-y: auto;/, "billet : il repart en bas de la colonne quand l'écran et lui ne tiennent pas dans la fenêtre");
+  assert.match(html, /aside\.long \{ position: sticky; top: 18px; align-self: start; grid-template-rows: none; \}/, "billet : il repart en bas de la colonne quand l'écran et lui ne tiennent pas dans la fenêtre");
+  assert.ok(html.includes("const bas = Math.min(18, innerHeight - col.offsetHeight - 18);") && !/aside\.long \{[^}]*overflow-y/.test(html), "billet : la colonne longue n'accompagne plus la page (ou défile à part)");
   assert.ok(contenuStatique("salle2.js").includes('asideEl.classList.toggle("long", long);'), "salle2.js : la colonne « long » a changé de forme, le billet pourrait ne plus rester sous l'aperçu");
   assert.ok(html.includes('liste.addEventListener("click", (e) => {') && html.includes('.profil.ajout button'), "« Voir mon billet » (Mes profils) ne mène plus au lien fixe");
   const js = contenuStatique("salle2.js");

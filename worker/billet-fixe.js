@@ -9,12 +9,12 @@ const FIXE = /\s*<div class="fixe" id="fixe" hidden>[^]*?<p class="alerte" id="f
 const ENVOI = '<div class="compte-nuvio">';
 
 // Écran et billet trop hauts ensemble pour la fenêtre (aside.long, page.js) : la salle 2 d'origine laisse alors le
-// billet en bas de la colonne, loin de l'aperçu. Ici le billet reste sous l'aperçu : la colonne suit le défilement et,
-// plus haute que la fenêtre, défile d'elle-même (molette ou doigt sur la colonne).
+// billet en bas de la colonne, loin de l'aperçu. Ici la colonne reste entière (écran puis billet) et accompagne la page :
+// en descendant, elle défile avec elle jusqu'à montrer le bas du billet, puis reste en place ; en remontant, jusqu'à
+// montrer le haut de l'écran. Pas de défilement à part, rien de coupé.
 const CSS = `
 @media (min-width: 961px) {
-  aside.long { position: sticky; top: 18px; align-self: start; grid-template-rows: none; max-height: calc(100vh - 36px);
-    overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--seat, #3d2230) transparent; padding: 0 6px 0 0; margin-right: -6px; }
+  aside.long { position: sticky; top: 18px; align-self: start; grid-template-rows: none; }
   aside.long .stage:not(.big) { position: relative; top: auto; }
 }
 #ticket .main > .fixe { margin-bottom: 2px; }
@@ -27,30 +27,43 @@ const CSS = `
 // fixe » prend la main. Défilement fait ici (le doux du navigateur s'arrête net quand le sommaire .nav défile lui aussi) ;
 // le clic ne va donc plus jusqu'au bouton d'origine.
 const JS = `(() => {
+  // La colonne longue accompagne la page (voir CSS) : son « top » collant suit le défilement, entre le haut de l'écran
+  // visible (18 px) et le bas du billet visible. La salle 2 remet ce top à vide quand elle recalcule la colonne.
+  const col = document.querySelector("aside");
+  if (col) {
+    let haut = 18, avant = scrollY;
+    const suit = () => {
+      const d = scrollY - avant; avant = scrollY;
+      if (!col.classList.contains("long") || matchMedia("(max-width: 960px)").matches) { haut = 18; return; }
+      const bas = Math.min(18, innerHeight - col.offsetHeight - 18);
+      haut = Math.max(bas, Math.min(18, haut - d));
+      col.style.top = haut + "px";
+    };
+    addEventListener("scroll", suit, { passive: true });
+    addEventListener("resize", suit);
+    new ResizeObserver(() => { avant = scrollY; suit(); }).observe(col);
+  }
   const liste = document.getElementById("profils-liste"), fixe = document.getElementById("fixe");
   if (!liste || !fixe) return;
   const calme = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  // Défile la page (el absent) ou un élément jusqu'à y.
-  const va = (y, el) => {
-    const lit = () => (el ? el.scrollTop : scrollY), pose = (v) => (el ? (el.scrollTop = v) : scrollTo(0, v));
-    const max = el ? el.scrollHeight - el.clientHeight : document.documentElement.scrollHeight - innerHeight;
-    const d = lit(), n = Math.max(0, Math.min(y, max)) - d, t0 = performance.now();
-    if (calme || Math.abs(n) < 4) { pose(d + n); return; }
+  // Défile la page jusqu'à y, puis appelle fin.
+  const va = (y, fin) => {
+    const d = scrollY, n = Math.max(0, Math.min(y, document.documentElement.scrollHeight - innerHeight)) - d, t0 = performance.now();
+    if (calme || Math.abs(n) < 4) { scrollTo(0, d + n); if (fin) requestAnimationFrame(fin); return; }
     let fini = false; const stop = () => { fini = true; };
     addEventListener("wheel", stop, { once: true, passive: true }); addEventListener("touchstart", stop, { once: true, passive: true });
-    const pas = (t) => { if (fini) return; const k = Math.min(1, (t - t0) / 600); pose(d + n * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(pas); };
+    const pas = (t) => { if (fini) return; const k = Math.min(1, (t - t0) / 600); scrollTo(0, d + n * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(pas); else if (fin) requestAnimationFrame(fin); };
     requestAnimationFrame(pas);
+  };
+  // Le bloc au milieu de la fenêtre ; la colonne qui accompagne la page bouge moins qu'elle, d'où quelques reprises.
+  const centre = (essais) => {
+    const r = fixe.getBoundingClientRect(), ecart = r.top - Math.max(16, (innerHeight - r.height) / 2);
+    if (Math.abs(ecart) > 24 && essais > 0) va(scrollY + ecart, () => centre(essais - 1));
   };
   liste.addEventListener("click", (e) => {
     if (!e.target.closest(".profil.ajout button") || fixe.hidden) return;
     e.stopPropagation();
-    const r = fixe.getBoundingClientRect(), col = fixe.closest("aside");
-    if (col && getComputedStyle(col).overflowY === "auto" && col.scrollHeight > col.clientHeight + 4) {
-      // Colonne plus haute que la fenêtre : la page l'amène en haut, puis la colonne amène le bloc au milieu.
-      const rc = col.getBoundingClientRect();
-      va(scrollY + rc.top - 18);
-      va(col.scrollTop + (r.top - rc.top) - Math.max(8, (col.clientHeight - r.height) / 2), col);
-    } else va(scrollY + r.top - Math.max(16, (innerHeight - r.height) / 2));
+    centre(3);
     fixe.classList.remove("nvf-vu"); void fixe.offsetWidth; fixe.classList.add("nvf-vu");
     setTimeout(() => fixe.classList.remove("nvf-vu"), 2400);
     const b = document.getElementById("fixe-creer");
