@@ -142,6 +142,15 @@ test("copie_salle_2_au_telephone", async () => {
   for (const s of scriptsEnLigne(html)) assert.doesNotThrow(() => new Function(s), "un script en ligne de la salle 2 ne se lit plus");
 });
 
+test("copie_apercu_onglets_des_tops_nommes", () => {
+  const js = contenuStatique("nuvio.js");
+  assert.ok(js.includes('"Onglet " + (i + 1)') && js.includes("const manifeste = (base) =>") && js.includes("const nomType = (t) =>"),
+    "aperçu (nuvio.js) : les onglets d'une tuile, le manifest ou nomType ont changé de forme, les tops s'appellent à nouveau « Onglet 1 »");
+  assert.match(js, /manifeste\(base\)\.then\(\(man\) => \{\s*const c = [^;]+x\.id === src\.catalogId/, "aperçu : les onglets sans titre ne sont plus nommés comme dans Nuvio");
+  assert.ok(js.includes('" (" + (src.type === "movie" ? "Films" : src.type === "series" ? "Séries"') && js.includes('" · " + src.genre'), "aperçu : le nom n'a plus la forme « Top Netflix (Films) · France »");
+  assert.doesNotThrow(() => new Function(js), "aperçu (nuvio.js) ne se lit plus");
+});
+
 test("copie_envoi_dans_nuvio_avec_lumio", async () => {
   const html = await page("/compte-nuvio");
   for (const id of ["e-lumio", "e-wastream", "e-os", "lien-lumio", "lien-wastream"]) assert.ok(html.includes(`id="${id}"`), `/compte-nuvio : « ${id} » absent (compte-autres.js)`);

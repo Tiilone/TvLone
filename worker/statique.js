@@ -8,6 +8,7 @@
 import { STAGE_CSS, STAGE_JS } from "./stage.js";
 import { APERCU_CSS, APERCU_JS } from "./apercu.js";
 import { NUVIO_CSS, NUVIO_JS, AFFICHES_JS } from "./nuvio.js";
+import { avecOngletsNommes } from "./onglets-apercu.js";   // copie : onglets des tops nommés comme dans Nuvio
 import { REGLAGES_CSS, REGLAGES_JS } from "./reglages.js";
 import { LIENS_JS } from "./liens.js";
 import { POLICES, policesCss } from "./polices.js";
@@ -24,7 +25,7 @@ import { GALERIE_CSS, GALERIE_JS } from "./galerie.js";
 let fichiers = null;
 const FICHIERS = () => fichiers || (fichiers = {
   "scene.css": STAGE_CSS, "scene.js": STAGE_JS,
-  "nuvio.css": NUVIO_CSS, "nuvio.js": NUVIO_JS, "affiches.js": AFFICHES_JS,
+  "nuvio.css": NUVIO_CSS, "nuvio.js": avecOngletsNommes(NUVIO_JS), "affiches.js": AFFICHES_JS,
   "apercu.css": APERCU_CSS, "apercu.js": APERCU_JS,
   "reglages.css": REGLAGES_CSS, "reglages.js": REGLAGES_JS,
   "liens.js": LIENS_JS,
