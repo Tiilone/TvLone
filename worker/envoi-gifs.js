@@ -13,7 +13,7 @@ const CSS = `
 @media (max-width: 480px) { .switch.nvs-sous { margin-left: 24px; } }
 `;
 
-const CASE = `<label class="switch nvs-sous"><input type="checkbox" id="e-gifs" checked><span><b>Tuiles animées</b><small>Les tuiles des collections s'animent (GIF) quand tu t'arrêtes dessus. Décoche pour des tuiles fixes, plus légères sur une petite TV.</small></span></label>`;
+const CASE = `<label class="switch nvs-sous"><input type="checkbox" id="e-gifs" checked><span><b>Tuiles animées</b><small>Les tuiles des collections s'animent (GIF) quand tu t'arrêtes dessus. Décoche pour des tuiles fixes, moins gourmandes en ressources.</small></span></label>`;
 
 // Dans le script de la page, juste avant l'envoi des collections.
 const ENVOI = `
