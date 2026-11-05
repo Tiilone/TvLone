@@ -176,6 +176,20 @@ test("copie_envoi_dans_nuvio_tuiles_animees_au_choix", async () => {
   for (const s of scriptsEnLigne(html)) assert.doesNotThrow(() => new Function(s), "un script en ligne de /compte-nuvio ne se lit plus");
 });
 
+test("copie_espace_hebergeur_discret_et_en_bas_des_nouveautes", async () => {
+  const salle2 = await page("/configure");
+  const s = section(salle2, "s-hote");
+  assert.ok(s, "salle 2 : l'espace hébergeur a disparu ou changé de forme (hote-discret.js)");
+  assert.ok(!s.includes("Tu héberges ta propre copie"), "salle 2 : le texte d'introduction de l'espace hébergeur est revenu");
+  assert.ok(salle2.includes('#s-hote:not(.nvh-on), .nav a[href="#s-hote"]:not(.nvh-on) { display: none !important; }'), "salle 2 : l'espace hébergeur se voit à nouveau sans être connecté");
+  assert.match(salle2, /<a href="#s-hote">Hébergeur<\/a>/, "salle 2 : le lien « Hébergeur » du menu a changé de forme, il ne serait plus caché");
+  const nouv = await page("/nouveautes");
+  assert.match(nouv, /<section class="hote" id="s-hote"[^]*?id="hote-box"[^]*?<nav class="fin"/, "/nouveautes : l'espace hébergeur n'est plus tout en bas");
+  assert.ok(nouv.includes("function hoteRender") && nouv.includes('getElementById("hote-alertes")'), "/nouveautes : le script de l'espace hébergeur manque");
+  assert.ok(!nouv.includes("Tu héberges ta propre copie"), "/nouveautes : texte d'introduction de l'espace hébergeur");
+  for (const html of [salle2, nouv]) for (const sc of scriptsEnLigne(html)) assert.doesNotThrow(() => new Function(sc), "un script en ligne ne se lit plus");
+});
+
 test("copie_sans_renvoi_au_projet_d_origine", async () => {
   const copie = await worker.fetch(new Request(O + "/copie"), env, ctx);
   assert.equal(copie.status, 302, "/copie (« Monte ta propre salle ») est de nouveau accessible");

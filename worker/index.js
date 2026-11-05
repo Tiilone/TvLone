@@ -46,6 +46,7 @@ import { lienPage } from "./lien.js";
 import { compteNuvioPage } from "./compte-nuvio.js";
 import { avecAutresAddons } from "./compte-autres.js";
 import { avecChoixGifs } from "./envoi-gifs.js";   // copie : tuiles animées ou fixes à l'envoi dans Nuvio
+import { avecHoteDiscret, avecHoteEnBas } from "./hote-discret.js";   // copie : espace hébergeur caché en salle 2, en bas de /nouveautes
 import { copiePage } from "./copie.js";
 import { nouveautesPage } from "./nouveautes.js";
 import { hallPage } from "./hall.js";
@@ -3162,14 +3163,14 @@ const app = {
         ...c, pos: files.findIndex((f) => f.id === c.id),
         folders: displayOrder(c, ((files.find((f) => f.id === c.id) || {}).folders || []).map((f, i) => ({ id: f.id, title: f.title, cover: f.coverImageUrl || "", i }))),
       }));
-      const page = html(avecSalle2Mobile(avecSalle2Simple(configurePage({
+      const page = html(avecHoteDiscret(avecSalle2Mobile(avecSalle2Simple(configurePage({
         // Lien fixe : ni la clé Gemini ni le jeton d'alerte dans la page, que voit quiconque a le lien. La page
         // qui a la clé de modification les redemande (POST /lien-fixe/<id>/lire, voir fixe.js).
         origin: url.origin, cfg: fixedId ? { ...cfg, k: "", al: "" } : cfg, rows, discover: DEFS.discover, providers: PROVIDERS, collections: cols,
         defaults: defaults(rows, DEFS.discover), regions: REGIONS, genres: GENRES, languages: LANGUAGES,
         sorts: SORTS, seasons: SEASON_KEYS, maxCustom: MAX_CUSTOM, season: decorSaison(url, today), copy: isCopy(url),
         fixed: fixedId, fixedOk: fixedAvailable(env), apercus: apercusDe(env, url.origin),
-      }))));
+      })))));
       // Lien fixe : ses réglages changent sans que l'adresse change, la page n'est jamais resservie d'un cache.
       if (fixedId) page.headers.set("Cache-Control", "no-store");
       return page;
@@ -3180,7 +3181,7 @@ const app = {
     if (path === "/compte-nuvio") return html(avecChoixGifs(avecAutresAddons(compteNuvioPage({ origin: url.origin }))));   // collections envoyées au compte Nuvio (essai)
     if (path === "/copie") return sansPageCopie(url);   // cette copie : pas de « Monte ta propre salle » (copie-discrete.js)
     if (path === "/copie") return html(copiePage({ origin: url.origin }));   // « Monte ta propre salle » : héberger sa copie
-    if (path === "/nouveautes") return html(nouveautesPage({ origin: url.origin, version: VERSION }));   // ce qui a changé, pour qui n'a pas Discord
+    if (path === "/nouveautes") return html(avecHoteEnBas(nouveautesPage({ origin: url.origin, version: VERSION }), isCopy(url)));   // ce qui a changé, pour qui n'a pas Discord
     if (path === "/tv") return Response.redirect(NUVIO_TV_APK, 302);   // adresse courte pour Downloader : télécharge l'APK
     // Styles et scripts communs aux pages du site, gardés en cache par le navigateur (voir statique.js).
     if (path.startsWith("/statique/")) return statique(path.slice(10), url.searchParams.get("v")) || new Response("introuvable", { status: 404 });
