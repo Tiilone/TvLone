@@ -197,6 +197,8 @@ test("copie_lien_fixe_en_haut_du_billet", async () => {
   const fixe = html.indexOf('<div class="fixe" id="fixe" hidden>'), envoi = html.indexOf('<div class="compte-nuvio">'), main = html.indexOf('<details class="a-la-main" id="a-la-main">');
   assert.ok(fixe > 0 && fixe < envoi && envoi < main, "billet : le lien fixe n'est plus en haut, avant « Tout envoyer dans Nuvio » (billet-fixe.js)");
   assert.equal(html.split('id="fixe"').length - 1, 1, "billet : bloc du lien fixe en double");
+  assert.match(html, /aside\.long \{ position: sticky; top: 18px; align-self: start;[^}]*overflow-y: auto;/, "billet : il repart en bas de la colonne quand l'écran et lui ne tiennent pas dans la fenêtre");
+  assert.ok(contenuStatique("salle2.js").includes('asideEl.classList.toggle("long", long);'), "salle2.js : la colonne « long » a changé de forme, le billet pourrait ne plus rester sous l'aperçu");
   assert.ok(html.includes('liste.addEventListener("click", (e) => {') && html.includes('.profil.ajout button'), "« Voir mon billet » (Mes profils) ne mène plus au lien fixe");
   const js = contenuStatique("salle2.js");
   assert.ok(js.includes("Il s'installe une seule fois, avec « Tout envoyer dans Nuvio » (ou à la main, plus bas).") && !js.includes("C'est le lien du dessus"), "salle2.js : le texte du lien fixe parle encore du « lien du dessus »");
