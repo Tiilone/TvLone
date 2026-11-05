@@ -9,6 +9,7 @@ import { STAGE_CSS, STAGE_JS } from "./stage.js";
 import { APERCU_CSS, APERCU_JS } from "./apercu.js";
 import { NUVIO_CSS, NUVIO_JS, AFFICHES_JS } from "./nuvio.js";
 import { avecOngletsNommes } from "./onglets-apercu.js";   // copie : onglets des tops nommés comme dans Nuvio
+import { fixeTextes } from "./billet-fixe.js";   // copie : textes du lien fixe, placé en haut du billet
 import { REGLAGES_CSS, REGLAGES_JS } from "./reglages.js";
 import { LIENS_JS } from "./liens.js";
 import { POLICES, policesCss } from "./polices.js";
@@ -30,7 +31,7 @@ const FICHIERS = () => fichiers || (fichiers = {
   "apercu.css": APERCU_CSS, "apercu.js": APERCU_JS,
   "reglages.css": REGLAGES_CSS, "reglages.js": REGLAGES_JS,
   "liens.js": LIENS_JS,
-  "salle2.css": SALLE2_CSS, "salle2-fin.css": SALLE2_FIN_CSS, "salle2.js": SALLE2_JS, "salle2-hote.js": HOTE_JS,
+  "salle2.css": SALLE2_CSS, "salle2-fin.css": SALLE2_FIN_CSS, "salle2.js": fixeTextes(SALLE2_JS), "salle2-hote.js": HOTE_JS,
   // Salle 2, ajouts à part : le guichet (3 questions, programmations toutes prêtes), la soirée à deux, la galerie
   // des styles d'affiches (régie).
   "salle2-guichet.css": GUICHET_CSS, "salle2-guichet.js": GUICHET_JS,

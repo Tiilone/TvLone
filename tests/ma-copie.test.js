@@ -192,6 +192,18 @@ test("copie_espace_hebergeur_discret_et_en_bas_des_nouveautes", async () => {
   for (const html of [salle2, nouv]) for (const sc of scriptsEnLigne(html)) assert.doesNotThrow(() => new Function(sc), "un script en ligne ne se lit plus");
 });
 
+test("copie_lien_fixe_en_haut_du_billet", async () => {
+  const html = await page("/configure");
+  const fixe = html.indexOf('<div class="fixe" id="fixe" hidden>'), envoi = html.indexOf('<div class="compte-nuvio">'), main = html.indexOf('<details class="a-la-main" id="a-la-main">');
+  assert.ok(fixe > 0 && fixe < envoi && envoi < main, "billet : le lien fixe n'est plus en haut, avant « Tout envoyer dans Nuvio » (billet-fixe.js)");
+  assert.equal(html.split('id="fixe"').length - 1, 1, "billet : bloc du lien fixe en double");
+  assert.ok(html.includes('liste.addEventListener("click", (e) => {') && html.includes('.profil.ajout button'), "« Voir mon billet » (Mes profils) ne mène plus au lien fixe");
+  const js = contenuStatique("salle2.js");
+  assert.ok(js.includes("Il s'installe une seule fois, avec « Tout envoyer dans Nuvio » (ou à la main, plus bas).") && !js.includes("C'est le lien du dessus"), "salle2.js : le texte du lien fixe parle encore du « lien du dessus »");
+  assert.ok(js.includes("tu peux faire un profil par personne (Mes profils, en haut de la page)"), "salle2.js : le texte du lien fixe ne parle plus des profils");
+  for (const sc of scriptsEnLigne(html)) assert.doesNotThrow(() => new Function(sc), "un script en ligne de la salle 2 ne se lit plus");
+});
+
 test("copie_sans_renvoi_au_projet_d_origine", async () => {
   const copie = await worker.fetch(new Request(O + "/copie"), env, ctx);
   assert.equal(copie.status, 302, "/copie (« Monte ta propre salle ») est de nouveau accessible");
