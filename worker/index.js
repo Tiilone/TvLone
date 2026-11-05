@@ -77,7 +77,7 @@ import { routeCpu } from "./cpu.js";
 import { routeReserve, nettoyerReserve } from "./reserve.js";
 import { looksDescriptive, aiTitles, aiMiss, resolveTitles, aiRecap, aiProfile, aiProfiles, aiRenewal, aiEnv, AI_WAIT_MS } from "./ai.js";
 
-const VERSION = "5.53.0";
+const VERSION = "5.55.0";
 // Format des réponses gardées dans le cache Cloudflare (pages de rangées, fiches) : à augmenter seulement quand
 // ce qu'elles contiennent change (champ ajouté, règle d'affichage…). Avec VERSION dans les clés, chaque mise à jour
 // vidait tous les caches d'un coup : pic d'appels TMDB et Gemini. Les réponses de Gemini ont leurs propres clés (ai.js).
@@ -1391,29 +1391,50 @@ export function ageFinal(info, ageCnc) {
 }
 
 /**
- * Les âges du CNC (data/ages-cnc.json, scripts/build_ages_cnc.py) : { id TMDB: âge }, {} tant qu'il n'est pas lu (le
- * film garde son âge de TMDB). Lu seulement en Mode famille ; une lecture par heure ; échec : l'ancienne table sert.
+ * Un fichier de données du dépôt (data/…, refait la nuit par GitHub), rangé par identifiant TMDB : champ(fichier) ou
+ * null tant qu'il n'est pas lu. Une seule lecture à la fois, gardée une heure (VOD_MS) ; échec : l'ancienne table sert,
+ * nouvel essai dans 5 minutes. lire() rend la table ; oublier() l'efface (tests).
  */
-const AGES_CNC_URL = `${ASSETS}/data/ages-cnc.json`;
-let AGES_CNC = null;      // { films, until, promesse }
-function agesCnc() {
-  const now = Date.now();
-  if (!AGES_CNC || (!AGES_CNC.promesse && now >= AGES_CNC.until)) {
-    const etat = { films: AGES_CNC ? AGES_CNC.films : {}, until: Infinity, promesse: null };
-    etat.promesse = fetch(AGES_CNC_URL, { signal: AbortSignal.timeout(VOD_DELAI_MS), cf: { cacheTtl: 3600, cacheEverything: true } })
-      .then((r) => (r.ok ? r.json() : null)).catch(() => null)
-      .then((d) => {
-        const lu = d && d.films && typeof d.films === "object";
-        if (lu) etat.films = d.films;
-        etat.until = Date.now() + (lu ? VOD_MS : VOD_ECHEC_MS);
-        etat.promesse = null;
-        return etat.films;
-      });
-    AGES_CNC = etat;
-  }
-  return AGES_CNC.promesse || Promise.resolve(AGES_CNC.films);
+function donneesDuDepot(chemin, champ) {
+  let etat = null;   // { table, until, promesse }
+  const lire = () => {
+    const now = Date.now();
+    if (!etat || (!etat.promesse && now >= etat.until)) {
+      const e = { table: etat ? etat.table : null, until: Infinity, promesse: null };
+      e.promesse = fetch(`${ASSETS}/${chemin}`, { signal: AbortSignal.timeout(VOD_DELAI_MS), cf: { cacheTtl: 3600, cacheEverything: true } })
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+        .then((d) => {
+          const t = d && d[champ] && typeof d[champ] === "object" ? d[champ] : null;
+          if (t) e.table = t;
+          e.until = Date.now() + (t ? VOD_MS : VOD_ECHEC_MS);
+          e.promesse = null;
+          return e.table;
+        });
+      etat = e;
+    }
+    return etat.promesse || Promise.resolve(etat.table);
+  };
+  return { lire, oublier: () => { etat = null; } };
 }
-export const oublierAgesCnc = () => { AGES_CNC = null; };
+
+/**
+ * Les âges du CNC (data/ages-cnc.json, scripts/build_ages_cnc.py) : { id TMDB: âge }, {} tant qu'il n'est pas lu (le
+ * film garde son âge de TMDB). Lu seulement en Mode famille.
+ */
+const AGES_CNC = donneesDuDepot("data/ages-cnc.json", "films");
+const agesCnc = async () => (await AGES_CNC.lire()) || {};
+export const oublierAgesCnc = AGES_CNC.oublier;
+
+/**
+ * Les épisodes de remplissage des anime (data/fillers.json, scripts/build_fillers.py) : { id TMDB: « 26,97,136-140 » }.
+ * Lu seulement pour un anime.
+ */
+const FILLERS = donneesDuDepot("data/fillers.json", "series");
+export const oublierFillers = FILLERS.oublier;
+
+/** Les scènes du générique (data/scenes-generique.json, scripts/build_scenes_generique.py) : { id TMDB: code }. */
+const SCENES = donneesDuDepot("data/scenes-generique.json", "films");
+export const oublierScenes = SCENES.oublier;
 
 /**
  * Mode famille : titre classé au-dessus de l'âge choisi (cfg.f, voir AGES_FAMILLE) ? Un titre classé nulle part reste
@@ -2327,149 +2348,26 @@ function trailersOf(videos) {
     .map((v) => ({ source: v.key, ytId: v.key, type: v.type, name: v.name, lang: v.iso_639_1 }));
 }
 
-// Bande-annonce en VF quand TMDB n'en a pas (séries, films moins connus) : Allociné dit si une VF
-// existe et donne son titre exact, YouTube la fournit (Nuvio ne lit que YouTube).
-const VF_CACHE_S = 30 * 86400; // VF trouvée : 30 jours (elle ne change presque jamais ; moins de recherches YouTube)
-const VF_MISS_S = 2 * 86400;   // pas de VF : on réessaie dans 2 jours (elle sort souvent peu avant le titre)
-const VF_WAIT_MS = 2000;       // attente maximale à l'ouverture d'une fiche
-// YouTube redirige parfois les adresses de Cloudflare (consentement aux cookies, « pas un robot ») ou refuse (429) :
-// plus de recherche pendant 10 min sur cette instance, au lieu de réessayer à chaque fiche ouverte.
-const YT_PAUSE_MS = 10 * 60e3;
-let ytPauseJusqua = 0;
-export const oublierPauseYoutube = () => { ytPauseJusqua = 0; };
-const BROWSER_HEADERS = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36",
-  "Accept-Language": "fr-FR,fr;q=0.9",
-};
-const decodeHtml = (s) => s.replace(/&#0*39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");
-const shortName = (name) => name.split(/ [:–-] /)[0].trim();
+// Bande-annonce en VF quand TMDB n'en a pas (séries, films moins connus) : préparée la nuit par l'API YouTube officielle
+// (data/bandes-annonces-vf.json, scripts/build_bandes_annonces.py) pour les titres des rangées, et lue ici. Plus de
+// lecture d'AlloCiné ni de la page de recherche de YouTube à l'ouverture d'une fiche : leurs conditions l'interdisent,
+// et YouTube bloquait souvent (« pas un robot »).
+const BA_VF = donneesDuDepot("data/bandes-annonces-vf.json", "titres");
+export const oublierBandesAnnonces = BA_VF.oublier;
 
-/**
- * Titre de la bande-annonce VF sur Allociné (« Black Mirror - saison 7 Bande-annonce VF ») ; null si
- * Allociné n'a pas de VF, undefined si le titre n'y est pas, false si Wikidata n'a pas répondu. Fiche
- * Allociné trouvée par l'IMDb, via Wikidata.
- */
-async function allocineVf(kind, imdb) {
-  // L'identifiant IMDb vient de TMDB (modifiable par tous) et va tel quel dans la requête Wikidata.
-  if (!/^tt\d{1,10}$/.test(imdb || "")) return undefined;
-  const q = `SELECT ?a WHERE { ?f wdt:P345 "${imdb}"; wdt:${kind === "series" ? "P1267" : "P1265"} ?a }`;
-  const wd = await fetch(`https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(q)}`, { headers: WIKI_HEADERS, cf: WIKI_CACHE })
-    .then((r) => (r.ok ? r.json() : null), () => null);
-  if (!wd) return false;
-  const id = ((((wd.results || {}).bindings || [])[0] || {}).a || {}).value;
-  if (!/^\d+$/.test(id || "")) return undefined;
-  // Films : la fiche liste les vidéos. Séries : page des vidéos, la plus récente saison d'abord.
-  const url = kind === "series" ? `https://www.allocine.fr/series/ficheserie-${id}/videos/` : `https://www.allocine.fr/film/fichefilm_gen_cfilm=${id}.html`;
-  const html = await fetch(url, { headers: BROWSER_HEADERS }).then((r) => (r.ok ? r.text() : ""), () => "");
-  const name = decodeHtml((html.match(/<title>([^<]*)/) || [])[1] || "").replace(/^Trailers & Teasers de /, "").split(/ - (?:Film|Série|AlloCiné)/)[0].trim();
-  if (!name) return undefined;
-  // La page montre aussi les vidéos d'autres titres : seules celles qui commencent par le nom comptent.
-  const titles = [...html.matchAll(/>([^<>]*\b(?:Bande-annonce|Teaser)\b[^<>]*\bVF\b[^<>]*)</g)]
-    .map((x) => decodeHtml(x[1]).trim()).filter((t) => norm(t).startsWith(norm(name)));
-  const season = (t) => (t.match(/saison \d+/i) || [""])[0].toLowerCase();
-  // Une bande-annonce passe avant un teaser de la même saison.
-  return titles.find((t) => /Bande-annonce/.test(t) && season(t) === season(titles[0])) || titles[0] || null;
+/** Bande-annonce VF d'un titre ({ key: identifiant YouTube, title, hd }, ou { key: null }). */
+async function vfTrailer(kind, imdb) {
+  const table = await BA_VF.lire();
+  const x = table && table[`${kind}:${imdb}`];
+  return x && x.k ? { key: x.k, title: x.t, hd: x.hd !== false } : { key: null };
 }
 
-// Mots admis devant le nom dans le titre d'une vidéo trouvée par recherche directe (« Bande-annonce VF Below »,
-// « FX The Bear… ») : tout autre mot désigne une autre œuvre (« Above and Below »).
-const TRAILER_WORDS = new Set("bande annonce d trailer teaser vf officielle officiel nouvelle new la le les l fx netflix disney prime video apple tv hbo max canal paramount".split(" "));
-
-/**
- * Bande-annonce VF trouvée sur YouTube pour une recherche, si son titre nomme l'œuvre (et la saison) ;
- * null sinon, undefined si YouTube n'a pas répondu. Avec « year » (recherche directe, sans titre
- * Allociné) : le nom doit ouvrir le titre, et une année cohérente y figurer (celle du film à un an près,
- * celle de la première saison d'une série).
- */
-export async function youtubeVf(query, name, season, year, series) {
-  if (Date.now() < ytPauseJusqua) return undefined;
-  // SOCS=CAI : cookies refusés, sans passer par la page de consentement.
-  const url = `https://www.youtube.com/results?hl=fr&gl=FR&search_query=${encodeURIComponent(query)}`;
-  const res = await fetch(url, { headers: { ...BROWSER_HEADERS, Cookie: "SOCS=CAI" }, redirect: "manual" }).catch(() => null);
-  if (res && ((res.status >= 300 && res.status < 400) || res.status === 429)) {
-    ytPauseJusqua = Date.now() + YT_PAUSE_MS;
-    const loc = res.headers.get("location");
-    let vers = "";
-    try { if (loc) { const u = new URL(loc, url); vers = ` vers ${u.host}${u.pathname}`; } } catch (e) { /* adresse illisible */ }
-    console.log(`youtube ${res.status}${vers} : recherches de VF en pause 10 min`);
-    return undefined;
-  }
-  const html = res && res.ok ? await res.text().catch(() => "") : "";
-  if (!html.includes('"videoRenderer"')) return undefined;
-  const want = ` ${norm(name)} `;
-  const seasonRe = season ? new RegExp(`\\b(saison|season|s) ?0?${season}\\b`) : null;
-  const re = /"videoRenderer":\{"videoId":"([\w-]{11})"[\s\S]{0,3000}?"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"/g;
-  for (const m of html.matchAll(re)) {
-    let title;
-    try { title = JSON.parse(`"${m[2]}"`); } catch (e) { continue; }
-    const t = norm(title);
-    // Une bande-annonce en VF (pas un épisode ni un extrait), qui nomme l'œuvre (et la saison).
-    if (!/\bvf\b|version francaise/.test(t) || /\bvost/.test(t) || !/\b(bande d? ?annonce|ba|trailer|teaser|nouvelle saison)\b/.test(t)
-      || !` ${t} `.includes(want) || (seasonRe && !seasonRe.test(t))) continue;
-    if (year) {
-      const before = ` ${t} `.slice(0, ` ${t} `.indexOf(want)).trim().split(" ").filter(Boolean);
-      const y = Number(year), years = [...t.matchAll(/\b(?:19|20)\d\d\b/g)].map((x) => Number(x[0]));
-      // Une série et un film du même nom (Bleach, Friday Night Lights) : la vidéo doit être du bon côté.
-      const seriesWords = /\b(saison|season|serie|series|episode)\b/.test(t);
-      if (series ? /\bfilm\b/.test(t) : seriesWords) continue;
-      // Série : l'année de la première saison, ou une plus récente (ou aucune) si la vidéo dit de quelle saison
-      // il s'agit (« Black Clover - Saison 1 en VF : Bande-annonce »).
-      const okYear = (n) => (series ? n === y || (seriesWords && n > y && n <= new Date().getFullYear() + 1) : Math.abs(n - y) <= 1);
-      if (before.some((w) => !TRAILER_WORDS.has(w)) || !(years.some(okYear) || (series && seriesWords && !years.length))) continue;
-    }
-    return { key: m[1], title };
-  }
-  return null;
-}
-
-/** Bande-annonce VF d'un titre ({ key: identifiant YouTube, title }, ou { key: null }), gardée en cache. */
-async function vfTrailer(kind, imdb, name, year) {
-  const cacheKey = new Request(`https://cache.local/vf-trailer/v5/${kind}/${imdb}`);
-  const hit = await caches.default.match(cacheKey);
-  if (hit) return hit.json();
-  // YouTube en pause : ni Wikidata ni Allociné, rien n'est gardé, on réessaiera après la pause.
-  if (Date.now() < ytPauseJusqua) return { key: null };
-  const allo = await allocineVf(kind, imdb);
-  let found = null, failed = false;
-  const search = async (...args) => {
-    const r = await youtubeVf(...args);
-    if (r === undefined) failed = true;
-    return r || null;
-  };
-  // « The Bear : sur place ou à emporter - saison 5 Bande-annonce VF » : le sous-titre gêne la recherche.
-  if (allo) found = await search(allo.replace(/ : [^-]+(?= - )/, ""), shortName(name), (allo.match(/saison (\d+)/i) || [])[1]);
-  // Pas de VF sur Allociné (elle y manque souvent), titre absent d'Allociné, ou VF introuvable sur YouTube
-  // sous son titre Allociné : recherche directe, plus stricte.
-  if (!found && year) found = await search(`${name} ${kind === "series" ? "série " : ""}bande annonce VF ${year}`, shortName(name), null, year, kind === "series");
-  // Wikidata ou YouTube muet : rien n'est gardé, on réessaiera.
-  if (!found && (failed || allo === false)) found = undefined;
-  // HD ou pas : YouTube n'a l'image « maxresdefault » que pour les vidéos d'au moins 720p.
-  const hd = found ? await fetch(`https://i.ytimg.com/vi/${found.key}/maxresdefault.jpg`, { method: "HEAD" }).then((r) => r.ok, () => true) : false;
-  const out = found ? { key: found.key, title: found.title, hd } : { key: null };
-  // YouTube n'a pas répondu : rien n'est gardé, on réessaiera à la prochaine ouverture.
-  if (found !== undefined) {
-    await caches.default.put(cacheKey, new Response(JSON.stringify(out), { headers: { "Cache-Control": `public, max-age=${found ? VF_CACHE_S : VF_MISS_S}` } }));
-  }
-  if (found) await addToVfIndex(`${kind}:${imdb}`, { key: found.key, hd });
+/** Les VF du fichier pour les rangées (Nuvio y lance la bande-annonce sans ouvrir la fiche) : { "movie:tt…": { key, hd } }. */
+async function readVfIndex() {
+  const table = (await BA_VF.lire()) || {};
+  const out = {};
+  for (const [cle, x] of Object.entries(table)) if (x && x.k) out[cle] = { key: x.k, hd: x.hd !== false };
   return out;
-}
-
-// Index des VF trouvées, pour les rangées de l'accueil : Nuvio y lance la bande-annonce sans ouvrir la
-// fiche, et chercher la VF de chaque titre d'une page dépasserait la limite d'appels de Cloudflare.
-const VF_INDEX = new Request("https://cache.local/vf-trailer/index");
-const VF_INDEX_MAX = 4000;     // titres gardés (les plus anciens sortent en premier)
-
-function readVfIndex() {
-  return caches.default.match(VF_INDEX).then((r) => (r ? r.json() : {})).catch(() => ({}));
-}
-
-async function addToVfIndex(id, vf) {
-  const index = await readVfIndex();
-  delete index[id];
-  index[id] = vf;
-  const ids = Object.keys(index);
-  ids.slice(0, Math.max(0, ids.length - VF_INDEX_MAX)).forEach((k) => delete index[k]);
-  await caches.default.put(VF_INDEX, new Response(JSON.stringify(index), { headers: { "Cache-Control": `public, max-age=${30 * 86400}` } }));
 }
 
 /** Bandes-annonces d'un titre de rangée : celles de TMDB, avec la VF de l'index si TMDB n'en a pas. */
@@ -2514,13 +2412,8 @@ async function meta(env, kind, id, cfg, today, ctx, opts = {}) {
     ? ((releases.find((r) => r.iso_3166_1 === cfg.g) || {}).release_dates || []).map((r) => r.certification).find(Boolean)
     : ((brut.content_ratings && brut.content_ratings.results || []).find((r) => r.iso_3166_1 === cfg.g) || {}).rating;
   const trailers = trailersOf(brut.videos && brut.videos.results);
-  // Pas de VF sur TMDB : recherche Allociné + YouTube, lancée tout de suite et attendue en fin de fiche.
-  let vfJob = null;
-  if (short === "fr" && imdb && !trailers.some((t) => isVf(t.lang, t.name))) {
-    const job = vfTrailer(kind, imdb, (brut.title || brut.name || "").trim(), date.slice(0, 4)).catch(() => null);
-    ctx.waitUntil(job);
-    vfJob = Promise.race([job, new Promise((res) => setTimeout(() => res("attente"), VF_WAIT_MS))]);
-  }
+  // Pas de VF sur TMDB : celle préparée la nuit (data/bandes-annonces-vf.json), attendue en fin de fiche.
+  const vfJob = short === "fr" && imdb && !trailers.some((t) => isVf(t.lang, t.name)) ? vfTrailer(kind, imdb).catch(() => null) : null;
   const keywords = ((movie ? brut.keywords && brut.keywords.keywords : brut.keywords && brut.keywords.results) || []).map((k) => k.name);
   // Lignes écrites par l'IA, lancées dès que possible, pendant que le reste de la fiche se construit :
   // « pour qui » n'a besoin que de la fiche TMDB ; la saison commandée part dès que les saisons sont recomptées, le
@@ -2621,7 +2514,9 @@ async function meta(env, kind, id, cfg, today, ctx, opts = {}) {
   // « pour qui » et « à savoir » (IA), puis le rappel de l'œuvre précédente (IA).
   // En premier : y aura-t-il une suite ? (série terminée, saison annoncée, film suivant de la saga)
   const follow = movie ? null : seriesFollow(d, today);
-  const extras = [follow ? follow.text : "", movie ? creditsScene(keywords) : "", sourceNote(keywords, crew)];
+  // Scène du générique : aftercredits.com d'abord (data/scenes-generique.json), sinon les mots-clés TMDB.
+  const scenes = movie ? await SCENES.lire() : null;
+  const extras = [follow ? follow.text : "", movie ? creditsScene(keywords, scenes && scenes[brut.id]) : "", sourceNote(keywords, crew)];
 
   // TMDB dit « pas terminée » sans saison annoncée : Wikipédia tranche (renouvelée ou non).
   const renewalJob = ai && follow && follow.unsure ? ask(renewalOf(env, ctx, d, follow.season, today)) : null;
@@ -2710,9 +2605,7 @@ async function meta(env, kind, id, cfg, today, ctx, opts = {}) {
   m.description = [m.description, extras.filter(Boolean).join("\n"), recapLine].filter(Boolean).join("\n\n") || undefined;
   if (vfJob) {
     const vf = await vfJob;
-    // Pas encore trouvée : la fiche n'est pas gardée, la VF sera là à la prochaine ouverture.
-    if (vf === "attente") m._partial = true;
-    else if (vf && vf.key) {
+    if (vf && vf.key) {
       const vfItem = { source: vf.key, ytId: vf.key, type: "Trailer", name: vf.title, lang: "fr" };
       // VF pas en HD sur YouTube : la bande-annonce HD de TMDB reste en premier (celle du hero), la VF
       // juste après dans la liste de la fiche.
@@ -2822,9 +2715,15 @@ function renewalNote(r, season) {
   return `⏸️ Saison ${season} pas encore commandée${more}.`;
 }
 
-/** Scène pendant ou après le générique, d'après les mots-clés TMDB. */
-function creditsScene(keywords) {
-  const during = keywords.includes("duringcreditsstinger"), after = keywords.includes("aftercreditsstinger");
+/**
+ * Scène pendant ou après le générique. code : la note d'aftercredits.com (data/scenes-generique.json : « p » pendant,
+ * « a » après, « pa » les deux, « s » une scène sans plus de précision, « 0 » aucune) ; sans elle, les mots-clés TMDB.
+ */
+export function creditsScene(keywords, code) {
+  if (code === "0") return "🎬 Pas de scène après le générique : tu peux partir.";
+  if (code === "s") return "🎬 Il y a une scène pendant ou après le générique.";
+  const during = code ? code.includes("p") : keywords.includes("duringcreditsstinger");
+  const after = code ? code.includes("a") : keywords.includes("aftercreditsstinger");
   if (during && after) return "🎬 Reste jusqu'au bout : il y a des scènes pendant et après le générique.";
   if (after) return "🎬 Reste après le générique : il y a une scène.";
   if (during) return "🎬 Il y a une scène pendant le générique.";
@@ -2887,8 +2786,23 @@ function bestEpisodes(episodes, today) {
     .slice(0, 3).map((e) => e.episode_number));
 }
 
-/** Numéros des épisodes de remplissage d'un anime (numérotation continue), d'après animefillerlist.com. */
+/** « 26,97,136-140 » → Set {26, 97, 136, …, 140} (5000 numéros au plus). */
+function plagesEnEnsemble(texte) {
+  const out = new Set();
+  for (const [, a, b] of String(texte || "").matchAll(/(\d+)(?:\s*-\s*(\d+))?/g)) {
+    for (let k = Number(a); k <= Number(b || a) && out.size < 5000; k++) out.add(k);
+  }
+  return out;
+}
+
+/**
+ * Numéros des épisodes de remplissage d'un anime (numérotation continue), d'après animefillerlist.com : le fichier de la
+ * nuit (data/fillers.json, séries reliées à TMDB par leur titre anglais). Une série absente du fichier n'en a pas (ou
+ * n'a pas pu être reliée) : null. Fichier illisible : l'ancienne façon, la page du site devinée depuis le titre.
+ */
 async function fillerEpisodes(d) {
+  const table = await FILLERS.lire();
+  if (table) return d.id != null && table[d.id] ? plagesEnEnsemble(table[d.id]) : null;
   const slugs = [...new Set([d.name, d.original_name].map((n) => norm(n).replace(/ /g, "-")).filter(Boolean))];
   for (const slug of slugs) {
     const html = await fetch(`https://www.animefillerlist.com/shows/${slug}`, {
@@ -2897,11 +2811,7 @@ async function fillerEpisodes(d) {
     }).then((r) => (r.ok ? r.text() : ""), () => "");
     const m = /<div class="filler">([\s\S]*?)<\/div>/.exec(html);
     if (!m) continue;
-    const out = new Set();
-    for (const [, a, b] of m[1].replace(/<[^>]+>/g, " ").matchAll(/(\d+)(?:\s*-\s*(\d+))?/g)) {
-      for (let k = Number(a); k <= Number(b || a) && out.size < 5000; k++) out.add(k);
-    }
-    return out;
+    return plagesEnEnsemble(m[1].replace(/<[^>]+>/g, " "));
   }
   return null;
 }
