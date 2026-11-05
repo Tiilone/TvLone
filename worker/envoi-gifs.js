@@ -1,8 +1,10 @@
 // Page « Tout envoyer dans Nuvio » (/compte-nuvio) : un interrupteur « Tuiles animées » sous « Les collections »
 // (ajout propre à cette copie, absent du dépôt d'origine). Coché (par défaut) : les collections partent telles
 // quelles : une tuile sélectionnée s'anime (son GIF) et une vidéo joue en fond d'écran (heroVideoUrl). Décoché :
-// chaque tuile part avec focusGifEnabled à false (l'interrupteur « GIF au focus » de Nuvio) et sans sa vidéo de fond
-// (Nuvio n'a pas d'interrupteur pour elle ; il montre alors l'image de fond, heroBackdropUrl). Seules nos collections sont
+// chaque tuile part sans son GIF (focusGifUrl) ni sa vidéo de fond (heroVideoUrl), et avec focusGifEnabled à false :
+// Nuvio montre alors la couverture (coverImageUrl) et l'image de fond (heroBackdropUrl). Couper l'interrupteur
+// focusGifEnabled ne suffit pas : l'appli téléphone et ordinateur a son propre « Afficher le GIF si configuré »,
+// gardé sur l'appareil et jamais lu dans le compte, et la vidéo de fond n'a pas d'interrupteur. Seules nos collections sont
 // touchées (celles faites dans Nuvio restent telles quelles). Le choix est gardé dans ce navigateur.
 // Si la page d'origine change de forme, elle reste telle quelle.
 
@@ -21,7 +23,7 @@ const ENVOI = `
   // Tuiles animées (ajout de cette copie) : décoché, nos tuiles partent sans GIF au focus ni vidéo de fond.
   const sansGifs = () => { const c = $("e-gifs"); return !!c && !c.checked; };
   const avecGifs = (cols) => !sansGifs() ? cols : cols.map((col) => (col && Array.isArray(col.folders)
-    ? { ...col, folders: col.folders.map((f) => (f && typeof f === "object" ? Object.assign({}, f, { focusGifEnabled: false, heroVideoUrl: undefined }) : f)) } : col));
+    ? { ...col, folders: col.folders.map((f) => (f && typeof f === "object" ? Object.assign({}, f, { focusGifEnabled: false, focusGifUrl: undefined, heroVideoUrl: undefined }) : f)) } : col));
 `;
 
 // Coché selon ce navigateur ; grisé quand « Les collections » ne part pas.
