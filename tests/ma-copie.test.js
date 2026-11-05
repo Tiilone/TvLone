@@ -155,6 +155,8 @@ test("copie_envoi_dans_nuvio_avec_lumio", async () => {
   const html = await page("/compte-nuvio");
   for (const id of ["e-lumio", "e-wastream", "e-os", "lien-lumio", "lien-wastream"]) assert.ok(html.includes(`id="${id}"`), `/compte-nuvio : « ${id} » absent (compte-autres.js)`);
   assert.match(html, /const envoiAutre = async/, "/compte-nuvio : l'envoi de Lumio, WAStream et OpenSubtitles a disparu");
+  assert.match(html, /\["e-lumio", "Lumio", [^\n]*\n\s*\["e-wastream"[^\n]*\n\s*\["e-os"[^\n]*\n\s*\["e-coll", "Les collections"/, "/compte-nuvio : Lumio, WAStream et OpenSubtitles ne partent plus juste avant les collections");
+  assert.ok(html.indexOf('id="champ-lumio"') > html.indexOf('id="e-aff"'), "/compte-nuvio : les champs de lien Lumio / WAStream ne sont plus sous les interrupteurs");
   for (const s of scriptsEnLigne(html)) assert.doesNotThrow(() => new Function(s), "un script en ligne de /compte-nuvio ne se lit plus");
 });
 

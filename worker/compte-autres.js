@@ -65,7 +65,9 @@ const ENVOI = `
   };
 `;
 
-const PARTIES = AUTRES_ADDONS.map((a) => `      ["e-${a.id}", ${JSON.stringify(a.nom)}, () => envoiAutre(${JSON.stringify(a.id)}, +((opt && opt.dataset.addons) || memo.profil))],\n`).join("");
+// Juste avant les collections, pour chaque profil visé (c : sa cible, « Mes profils » de la page d'origine). Un profil
+// qui prend les addons du profil principal dans Nuvio n'a pas d'addons à lui : rien à y ranger.
+const PARTIES = AUTRES_ADDONS.map((a) => `["e-${a.id}", ${JSON.stringify(a.nom)}, async () => (c.partage ? ${JSON.stringify(a.nom + " : celui du profil principal")} : envoiAutre(${JSON.stringify(a.id)}, c.addons))],\n        `).join("");
 
 // Cases et champs : repris du guide (ancre #lumio=…, sinon ce navigateur) ; une case suit son champ (cochée s'il y
 // a un lien), et le lien est gardé à chaque frappe.
@@ -92,15 +94,16 @@ const JS = `(() => {
 /** Ajoute les autres addons du guide à la page /compte-nuvio. Page inchangée si un repère manque. */
 export function avecAutresAddons(page) {
   const caseAddon = /<label class="switch"><input type="checkbox" id="e-addon"[^]*?<\/label>/;
-  const finCases = "</fieldset>";
+  // La fin du groupe des interrupteurs (celui de « L'addon »), pas celle d'un autre groupe (« Tes profils »).
+  const finCases = /(<input type="checkbox" id="e-addon"[^]*?<\/fieldset>)/;
   const envoiColl = "  const envoiCollections = async";
-  const partieAddon = /\["e-addon", "L'addon", [^\n]*\n/;
-  if (!caseAddon.test(page) || !page.includes(finCases) || !page.includes(envoiColl) || !partieAddon.test(page)) return page;
+  const partieColl = /\["e-coll", "Les collections", \(\) => envoiCollections\(c\.base, /;
+  if (!caseAddon.test(page) || !finCases.test(page) || !page.includes(envoiColl) || !partieColl.test(page)) return page;
   const out = page
     .replace(caseAddon, (m) => m + "\n      " + CASES)
-    .replace(finCases, () => finCases + CHAMPS)
+    .replace(finCases, (m) => m + CHAMPS)
     .replace(envoiColl, () => ENVOI + envoiColl)
-    .replace(partieAddon, (m) => m + PARTIES);
+    .replace(partieColl, (m) => PARTIES + m);
   const j = out.lastIndexOf("</body>");
   const ajout = `<style>${CSS}</style><script>${JS}</script>`;
   return j < 0 ? out + ajout : out.slice(0, j) + ajout + out.slice(j);
