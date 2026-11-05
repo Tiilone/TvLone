@@ -162,12 +162,15 @@ test("copie_envoi_dans_nuvio_tuiles_animees_au_choix", async () => {
   const html = await page("/compte-nuvio");
   assert.match(html, /id="e-coll"[^]*?<\/label>\s*<label class="switch nvs-sous"><input type="checkbox" id="e-gifs" checked>/, "/compte-nuvio : l'interrupteur « Tuiles animées » n'est plus sous « Les collections » (envoi-gifs.js)");
   assert.match(html, /const liste = fusion\(avant, avecGifs\(nos\), /, "/compte-nuvio : les collections partent sans tenir compte de « Tuiles animées »");
-  // Décoché : nos tuiles partent avec focusGifEnabled à false ; coché : telles quelles.
+  // Décoché : nos tuiles partent avec focusGifEnabled à false et sans vidéo de fond (l'image de fond reste) ; coché : telles quelles.
   const code = html.match(/const sansGifs = [^\n]+\n\s*const avecGifs = [^]*?: col\)\);/)[0];
   const essai = (coche) => new Function("$", code + "\nreturn avecGifs;")(() => ({ checked: coche }));
-  const cols = [{ id: "p", folders: [{ id: "n", focusGifEnabled: true, focusGifUrl: "x.gif" }, { id: "m" }] }, { id: "v" }];
+  const cols = [{ id: "p", folders: [{ id: "n", focusGifEnabled: true, focusGifUrl: "x.gif", heroVideoUrl: "x.mp4", heroBackdropUrl: "x.jpg" }, { id: "m" }] }, { id: "v" }];
   assert.deepEqual(essai(false)(cols).flatMap((c) => (c.folders || []).map((f) => f.focusGifEnabled)), [false, false]);
-  assert.equal(essai(false)(cols)[0].folders[0].focusGifUrl, "x.gif");
+  const envoyee = JSON.parse(JSON.stringify(essai(false)(cols)))[0].folders[0];
+  assert.equal(envoyee.focusGifUrl, "x.gif");
+  assert.equal(envoyee.heroBackdropUrl, "x.jpg");
+  assert.ok(!("heroVideoUrl" in envoyee), "/compte-nuvio : décoché, la vidéo de fond des tuiles part encore (Nuvio la joue)");
   assert.equal(essai(true)(cols), cols);
   for (const s of scriptsEnLigne(html)) assert.doesNotThrow(() => new Function(s), "un script en ligne de /compte-nuvio ne se lit plus");
 });
