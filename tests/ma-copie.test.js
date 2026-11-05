@@ -158,6 +158,20 @@ test("copie_envoi_dans_nuvio_avec_lumio", async () => {
   for (const s of scriptsEnLigne(html)) assert.doesNotThrow(() => new Function(s), "un script en ligne de /compte-nuvio ne se lit plus");
 });
 
+test("copie_envoi_dans_nuvio_tuiles_animees_au_choix", async () => {
+  const html = await page("/compte-nuvio");
+  assert.match(html, /id="e-coll"[^]*?<\/label>\s*<label class="switch nvs-sous"><input type="checkbox" id="e-gifs" checked>/, "/compte-nuvio : l'interrupteur « Tuiles animées » n'est plus sous « Les collections » (envoi-gifs.js)");
+  assert.match(html, /const liste = fusion\(avant, avecGifs\(nos\), /, "/compte-nuvio : les collections partent sans tenir compte de « Tuiles animées »");
+  // Décoché : nos tuiles partent avec focusGifEnabled à false ; coché : telles quelles.
+  const code = html.match(/const sansGifs = [^\n]+\n\s*const avecGifs = [^]*?: col\)\);/)[0];
+  const essai = (coche) => new Function("$", code + "\nreturn avecGifs;")(() => ({ checked: coche }));
+  const cols = [{ id: "p", folders: [{ id: "n", focusGifEnabled: true, focusGifUrl: "x.gif" }, { id: "m" }] }, { id: "v" }];
+  assert.deepEqual(essai(false)(cols).flatMap((c) => (c.folders || []).map((f) => f.focusGifEnabled)), [false, false]);
+  assert.equal(essai(false)(cols)[0].folders[0].focusGifUrl, "x.gif");
+  assert.equal(essai(true)(cols), cols);
+  for (const s of scriptsEnLigne(html)) assert.doesNotThrow(() => new Function(s), "un script en ligne de /compte-nuvio ne se lit plus");
+});
+
 test("copie_sans_renvoi_au_projet_d_origine", async () => {
   const copie = await worker.fetch(new Request(O + "/copie"), env, ctx);
   assert.equal(copie.status, 302, "/copie (« Monte ta propre salle ») est de nouveau accessible");

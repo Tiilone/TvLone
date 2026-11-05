@@ -45,6 +45,7 @@ import { lireReglages, ecrireReglages, dossierDe, MEMOIRES, MEMOIRES_PAYSAGE } f
 import { lienPage } from "./lien.js";
 import { compteNuvioPage } from "./compte-nuvio.js";
 import { avecAutresAddons } from "./compte-autres.js";
+import { avecChoixGifs } from "./envoi-gifs.js";   // copie : tuiles animées ou fixes à l'envoi dans Nuvio
 import { copiePage } from "./copie.js";
 import { nouveautesPage } from "./nouveautes.js";
 import { hallPage } from "./hall.js";
@@ -3176,7 +3177,7 @@ const app = {
     if (path === "") return html(avecHallSimple(hallPage({ origin: url.origin, season: decorSaison(url, today), copy: isCopy(url), apercus: apercusDe(env, url.origin) })));   // le hall : choisir sa salle
     if (path === "/guide") return html(avecModeSimple(guidePage({ origin: url.origin, season: decorSaison(url, today), apercus: apercusDe(env, url.origin) })));
     if (path === "/lien") return html(lienPage({ origin: url.origin }));   // ouvert par les QR codes du guide
-    if (path === "/compte-nuvio") return html(avecAutresAddons(compteNuvioPage({ origin: url.origin })));   // collections envoyées au compte Nuvio (essai)
+    if (path === "/compte-nuvio") return html(avecChoixGifs(avecAutresAddons(compteNuvioPage({ origin: url.origin }))));   // collections envoyées au compte Nuvio (essai)
     if (path === "/copie") return sansPageCopie(url);   // cette copie : pas de « Monte ta propre salle » (copie-discrete.js)
     if (path === "/copie") return html(copiePage({ origin: url.origin }));   // « Monte ta propre salle » : héberger sa copie
     if (path === "/nouveautes") return html(nouveautesPage({ origin: url.origin, version: VERSION }));   // ce qui a changé, pour qui n'a pas Discord
