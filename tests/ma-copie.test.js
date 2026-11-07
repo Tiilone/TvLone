@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import worker from "../worker/index.js";
 import { contenuStatique } from "../worker/statique.js";
 import { PORTES } from "../worker/hall-simple.js";
+import { sansChoixTuiles } from "../worker/envoi-gifs.js";
 
 globalThis.caches = { default: { match: async () => undefined, put: async () => {} } };
 globalThis.fetch = async (url) => new Response(String(url).endsWith("collections.json") ? "[]" : JSON.stringify({ results: [] }));
@@ -176,6 +177,12 @@ test("copie_envoi_dans_nuvio_tuiles_animees_au_choix", async () => {
   assert.ok(!("heroVideoUrl" in envoyee), "/compte-nuvio : décoché, la vidéo de fond des tuiles part encore (Nuvio la joue)");
   assert.equal(essai(true)(cols), cols);
   for (const s of scriptsEnLigne(html)) assert.doesNotThrow(() => new Function(s), "un script en ligne de /compte-nuvio ne se lit plus");
+  // Le même choix ajouté en salle 2 par le dépôt d'origine (v5.58) y est masqué, et un lien qui l'avait réglé n'y change rien.
+  const salle2 = await page("/configure");
+  assert.ok(salle2.includes("label.switch:has(#g-coll-video), label.switch:has(#g-coll-gif) { display: none !important; }"), "salle 2 : les interrupteurs de tuiles d'origine se voient de nouveau (envoi-gifs.js)");
+  assert.ok(salle2.includes('id="g-coll-gif"'), "salle 2 : l'interrupteur d'origine a disparu de la page, son script planterait");
+  assert.deepEqual(sansChoixTuiles({ sv: true, sg: true, c: ["x"] }), { sv: false, sg: false, c: ["x"] });
+  assert.match(readFileSync(new URL("../worker/index.js", import.meta.url), "utf8"), /path === "\/collections\.json"\) return json\(await collections\(sansChoixTuiles\(cfg\), url\)/, "/collections.json suit de nouveau les choix de tuiles de la salle 2 (index.js)");
 });
 
 test("copie_espace_hebergeur_discret_et_en_bas_des_nouveautes", async () => {

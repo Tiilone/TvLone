@@ -52,3 +52,19 @@ export function avecChoixGifs(page) {
   const ajout = `<style>${CSS}</style><script>${JS}</script>`;
   return j < 0 ? out + ajout : out.slice(0, j) + ajout + out.slice(j);
 }
+
+// Le dépôt d'origine (v5.58) a ajouté le même choix dans la salle 2 (« Vidéo de fond des tuiles », « Tuiles animées »,
+// cfg.sv / cfg.sg). Cette copie le laisse à l'envoi dans Nuvio (ci-dessus) : les deux interrupteurs de la salle 2 sont
+// masqués (le script de la salle 2 les lit toujours, ils restent dans la page), et un lien qui les avait décochés
+// avant garde ses tuiles animées : c'est l'envoi qui décide.
+const SALLE2_CSS = `<style>label.switch:has(#g-coll-video), label.switch:has(#g-coll-gif) { display: none !important; }</style>`;
+
+/** Salle 2 : sans les interrupteurs de tuiles d'origine (le choix se fait à l'envoi). */
+export function sansChoixTuilesSalle2(page) {
+  if (!page.includes('id="g-coll-video"') && !page.includes('id="g-coll-gif"')) return page;
+  const j = page.lastIndexOf("</body>");
+  return j < 0 ? page + SALLE2_CSS : page.slice(0, j) + SALLE2_CSS + page.slice(j);
+}
+
+/** Réglages d'un lien sans les choix de tuiles de la salle 2 (masqués dans cette copie). */
+export const sansChoixTuiles = (cfg) => (cfg && (cfg.sv || cfg.sg) ? { ...cfg, sv: false, sg: false } : cfg);

@@ -46,7 +46,7 @@ import { lireReglages, ecrireReglages, dossierDe, MEMOIRES, MEMOIRES_PAYSAGE } f
 import { lienPage } from "./lien.js";
 import { compteNuvioPage } from "./compte-nuvio.js";
 import { avecAutresAddons } from "./compte-autres.js";
-import { avecChoixGifs } from "./envoi-gifs.js";   // copie : tuiles animées ou fixes à l'envoi dans Nuvio
+import { avecChoixGifs, sansChoixTuilesSalle2, sansChoixTuiles } from "./envoi-gifs.js";   // copie : tuiles animées ou fixes à l'envoi dans Nuvio
 import { avecHoteDiscret, avecHoteEnBas } from "./hote-discret.js";   // copie : espace hébergeur caché en salle 2, en bas de /nouveautes
 import { avecFixeEnAvant } from "./billet-fixe.js";   // copie : lien fixe en haut du billet de la salle 2
 import { copiePage } from "./copie.js";
@@ -3186,7 +3186,7 @@ const app = {
         ...c, pos: files.findIndex((f) => f.id === c.id),
         folders: displayOrder(c, ((files.find((f) => f.id === c.id) || {}).folders || []).map((f, i) => ({ id: f.id, title: f.title, cover: f.coverImageUrl || "", i }))),
       }));
-      const page = html(avecFixeEnAvant(avecHoteDiscret(avecSalle2Mobile(avecSalle2Simple(configurePage({
+      const page = html(sansChoixTuilesSalle2(avecFixeEnAvant(avecHoteDiscret(avecSalle2Mobile(avecSalle2Simple(configurePage({
         // Lien fixe : ni la clé Gemini, ni le jeton d'alerte, ni les profils (leurs clés de modification) dans la page, que voit quiconque a le lien. La page
         // qui a la clé de modification les redemande (POST /lien-fixe/<id>/lire, voir fixe.js).
         origin: url.origin, cfg: fixedId ? { ...cfg, k: "", al: "", pf: [] } : cfg, rows, discover: DEFS.discover, providers: PROVIDERS, collections: cols,
@@ -3194,7 +3194,7 @@ const app = {
         sorts: SORTS, seasons: SEASON_KEYS, ages: AGES_FAMILLE.map(([age, nom]) => [age, nom]),
         maxCustom: MAX_CUSTOM, season: decorSaison(url, today), copy: isCopy(url),
         fixed: fixedId, fixedOk: fixedAvailable(env), apercus: apercusDe(env, url.origin),
-      }))))));
+      })))))));
       // Lien fixe : ses réglages changent sans que l'adresse change, la page n'est jamais resservie d'un cache.
       if (fixedId) page.headers.set("Cache-Control", "no-store");
       return page;
@@ -3218,7 +3218,7 @@ const app = {
       if (fixedId) ctx.waitUntil(noteLecture(env, fixedId, request));
       return res;
     }
-    if (path === "/collections.json") return json(await collections(cfg, url), CACHE_CLIENT_S);
+    if (path === "/collections.json") return json(await collections(sansChoixTuiles(cfg), url), CACHE_CLIENT_S);   // copie : tuiles choisies à l.envoi (envoi-gifs.js)
     if (path === "/accueil.json") return json(await ordreAccueil(today, cfg, url), CACHE_CLIENT_S);
     // Soirée à deux (salle 2) : les rangées d'un lien, sans clé Gemini ni jeton d'alerte (voir soiree.js).
     if (path === "/programmation.json") return json(programmationPublique(cfg), fixedId ? 60 : 86400);
