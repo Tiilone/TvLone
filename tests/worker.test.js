@@ -656,6 +656,19 @@ test("collections_comme_l_accueil", async () => {
   assert.deepEqual(await modes({ c: ["genres", "sagas"], ca: 1 }), ["FOLLOW_LAYOUT", "FOLLOW_LAYOUT"]);
 });
 
+// Vidéo de fond et GIF au choix : retirés du lien des collections, l'image fixe reste.
+test("collections_sans_video_ni_gif", async () => {
+  const folders = [{ id: "a", title: "A", coverImageUrl: "a.jpg", focusGifEnabled: true, focusGifUrl: "a.gif", heroVideoUrl: "a.mp4" }];
+  globalThis.fetch = async (url) => new Response(String(url).endsWith("/collections/collections.json")
+    ? JSON.stringify([{ id: "genres", title: "Genres", folders }]) : "{}", { headers: { "Content-Type": "application/json" } });
+  const tuile = async (cfg) => (await (await get(`/${seg(cfg)}/collections.json`)).json())[0].folders[0];
+  assert.deepEqual(await tuile({}), folders[0]);
+  const { heroVideoUrl, ...sansVideo } = folders[0];
+  assert.deepEqual(await tuile({ sv: 1 }), sansVideo);
+  assert.deepEqual(await tuile({ sg: 1 }), { ...folders[0], focusGifEnabled: false });
+  assert.deepEqual(await tuile({ sv: 1, sg: 1 }), { ...sansVideo, focusGifEnabled: false });
+});
+
 test("studios_ordre_par_defaut", async () => {
   const folders = ["studio-33", "studio-1", "studio-3", "marvel-studios", "warner-bros", "dc-comics"].map((id) => ({ id, title: id }));
   globalThis.fetch = async (url) => new Response(String(url).endsWith("/collections/collections.json")
@@ -1505,6 +1518,48 @@ test("dispo_depuis_peu_estimation_passee_et_vf_confirmee", async () => {
   };
   assert.deepEqual(await lancer(true), ["Verity"]);
   assert.deepEqual(await lancer(false), []);
+});
+
+// Film américain sur une plateforme d'abonnement française qui le double, sans sortie numérique aux États-Unis (The
+// Mongoose : en salle là-bas, sur Prime Video ici le 4 novembre) : sa sortie numérique française est son jour d'arrivée
+// chez soi, il est « Dispo depuis peu ». Sans la plateforme, la date française ne compte pas.
+test("dispo_depuis_peu_plateforme_francaise", async () => {
+  const jour = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+  const lancer = async (plateforme) => {
+    oublierInfos(); store.clear();
+    globalThis.fetch = async (url) => {
+      const u = String(url);
+      calls.push(u);
+      if (u.includes("/vf.json")) return sourcesDe({})(u);
+      if (u.includes("/discover/movie")) return Response.json({ results: [{ id: 7, title: "Mongoose", original_language: "en", release_date: jour(-7), popularity: 9 }], page: 1, total_pages: 1 });
+      if (/\/movie\/7\?/.test(u)) return Response.json({ ...filmVod(7, "en", [["US", 3, jour(-7)], ["FR", 4, jour(-2)]]),
+        "watch/providers": { results: plateforme ? { FR: { flatrate: [{ provider_id: 119, provider_name: "Amazon Prime Video" }] } } : {} } });
+      return Response.json({ results: [] });
+    };
+    return (await (await worker.fetch(new Request("https://x/catalog/movie/accueil-vod-semaine.json"), { ...env, LIENS: fakeD1() }, ctx)).json()).metas.map((m) => m.name);
+  };
+  assert.deepEqual(await lancer(true), ["Mongoose"]);
+  assert.deepEqual(await lancer(false), []);
+});
+
+// VFF prouvée par les noms des sources (TRUEFRENCH, VF2) avant la date officielle de sortie numérique (Heart of the
+// Beast : fichiers le 5 novembre, date le 10) : déjà « Dispo depuis peu ». Une VF sans preuve forte attend la date.
+test("dispo_depuis_peu_vff_prouvee_avant_la_date", async () => {
+  const jour = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+  const lancer = async (avis) => {
+    oublierInfos(); store.clear();
+    globalThis.fetch = async (url) => {
+      const u = String(url);
+      calls.push(u);
+      if (u.includes("/vf.json")) return sourcesDe({ tt908: avis })(u);
+      if (u.includes("/discover/movie")) return Response.json({ results: [{ id: 8, title: "Beast", original_language: "en", release_date: jour(-40), popularity: 9 }], page: 1, total_pages: 1 });
+      if (/\/movie\/8\?/.test(u)) return Response.json(filmVod(8, "en", [["US", 3, jour(-40)], ["US", 4, jour(4)]]));
+      return Response.json({ results: [] });
+    };
+    return (await (await worker.fetch(new Request("https://x/catalog/movie/accueil-vod-semaine.json"), { ...env, LIENS: fakeD1() }, ctx)).json()).metas.map((m) => m.name);
+  };
+  assert.deepEqual(await lancer({ vf: true, sources: 30, vff: true, vfq: { u: 1, x: null, p: 0, f: 1, a: 0 } }), ["Beast"]);
+  assert.deepEqual(await lancer({ vf: true, sources: 30 }), []);
 });
 
 // Les sorties en salle ne prennent pas la place des sorties numériques de la fenêtre : 28 candidats au plus, et des

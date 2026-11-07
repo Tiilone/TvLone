@@ -256,8 +256,11 @@ const AU_29_OCT = {
 };
 test("vff_possible_d_apres_les_dates", () => {
   const jour = "2026-10-29";
-  assert.equal(vffPossible(AU_29_OCT.verity, "en", jour), true, "en France avant le fichier américain");
-  assert.equal(vffPossible(AU_29_OCT.dogStars, "en", jour), true);
+  // En France avant le fichier américain : plus suffisant (Your Mother Your Mother Your Mother, Primetime : VFQ seulement).
+  // Verity et The Dog Stars restent en VF par leurs noms (TRUEFRENCH, VFF : vff), pas par leurs dates.
+  assert.equal(vffPossible(AU_29_OCT.verity, "en", jour), false, "en France avant le fichier américain : doute");
+  assert.equal(vffPossible(AU_29_OCT.dogStars, "en", jour), false);
+  assert.equal(vffPossible([sortie("FR", ["2026-09-01", 3])], "en", jour), true, "pas de fichier américain");
   assert.equal(vffPossible(AU_29_OCT.hope, "ko", jour), false, "en France après le fichier américain : VFQ");
   assert.equal(vffPossible(AU_29_OCT.byAnyMeans, "en", jour), false, "jamais en France");
   assert.equal(vffPossible(AU_29_OCT.coyote, "en", jour), true, "sortie numérique en France");
@@ -337,14 +340,14 @@ test("avis_sur_un_film_en_doute", () => {
   assert.equal(avecStreamFusion({ ...q, vfqPossible: undefined, vf: false, langue: "vo" }, { vf: true, sources: 1 }).vfqPossible, true);
 });
 
-// SUPPLY écrit la VFQ quand c'en est une : son « FRENCH » seul est une VFF (Beware Boiúna, 4 novembre 2026). Un
-// « FRENCH » d'un autre groupe (Slay3R pour Pressure, en VFQ) ou de Torrent9 reste à trancher.
-test("french_de_supply_est_une_vff", () => {
+// « FRENCH » seul n'est jamais une preuve de VFF, même du groupe SUPPLY : son « MULTi.FRENCH » de Leviticus portait
+// une piste fr-CA (7 novembre 2026). Seuls TRUEFRENCH, VFF, VFI, VF2 prouvent la VF de France.
+test("french_seul_n_est_pas_une_vff", () => {
   const vff = (titres) => !!parseQuality(titres.map((title) => ({ name: "Torrentio\n1080p", title }))).vff;
-  assert.equal(vff(["Beware Boiuna 2026 FRENCH 1080p WEB H264-SUPPLY\n👤 9 💾 7.02 GB ⚙️ EXT"]), true);
+  assert.equal(vff(["Leviticus.2026.MULTi.FRENCH.HDR.2160p.WEB.H265-SUPPLY.mkv"]), false, "Leviticus : VFQ");
+  assert.equal(vff(["Beware Boiuna 2026 FRENCH 1080p WEB H264-SUPPLY"]), false);
   assert.equal(vff(["Evil.Dead.Burn.2026.FRENCH.CA.HDR.2160p.WEB.H265-SUPPLY"]), false, "FRENCH.CA : VFQ");
-  assert.equal(vff(["Primetime 2026 MULTi CA 1080p WEB H264-SUPPLY"]), false, "MULTi CA : VFQ");
   assert.equal(vff(["Pressure.2026.MULTi.FRENCH.2160p.HDR.DV.WEB-DL.H265-Slay3R.mkv"]), false);
-  assert.equal(vff(["Méfiez-vous du Boiúna - Beware Boiuna FRENCH WEBRIP 1080p 2026\n⚙️ Torrent9"]), false);
-  assert.equal(vff(["Beware.Boiuna.2026.FRENCH.2160p.WEB.H265-SUPPLYE.mkv"]), false, "un autre nom de groupe");
+  assert.equal(vff(["Mutiny.2026.MULTi.VFF.2160p.WEB-DL.DDP5.1.HDR.AV1-WHY7726.mkv"]), true);
+  assert.equal(vff(["Heart of the Beast MULTI TRUEFRENCH WEBRIP 1080p 2026"]), true);
 });

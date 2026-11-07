@@ -36,11 +36,10 @@ const VF = /\b(TRUEFRENCH|FRENCH|VFF|VFI|VF2|VOF)\b|\bMULTI\b.*\bVF\b|Multi Audi
 // « FRENCH.CA », « MULTi.CA » : la version du Canada, une VFQ aussi.
 const VFQ = /\b(VFQ|QU[EÉ]BEC|QU[EÉ]B[EÉ]COIS)\b|\b(FRENCH|MULTI)[ ._-]CA\b/i;
 const VF_FRANCE = /\b(TRUEFRENCH|VFF|VFI|VF2)\b/i;
-// Groupes qui écrivent la VFQ quand c'en est une (« FRENCH.CA », « MULTi.VFQ ») : leur « FRENCH » seul est donc une VFF.
-// SUPPLY : FRENCH.CA et MULTi.VFQ pour Evil Dead Burn, MULTi CA pour Primetime, FRENCH pour Beware Boiúna (en VFF,
-// confirmé le 4 novembre 2026). Pas Slay3R : son « MULTi.FRENCH » de Pressure était une VFQ.
-const GROUPE_FIABLE = /-SUPPLY(?![A-Za-z0-9])/i;
-const vffSure = (t) => VF_FRANCE.test(t) || (/\bFRENCH\b/i.test(t) && GROUPE_FIABLE.test(t) && !VFQ.test(t));
+// Plus aucun groupe cru sur parole pour un « FRENCH » seul (2026-11-07) : SUPPLY, qui écrit d'habitude « CA » pour la
+// VFQ, a sorti Leviticus en « MULTi.FRENCH » avec une piste fr-CA (VFQ, vue dans le lecteur). Seuls TRUEFRENCH, VFF,
+// VFI, VF2 prouvent une VF de France.
+const vffSure = (t) => VF_FRANCE.test(t);
 // Doublage fait par une IA (« MULTi.AI ») : pas une VF.
 const IA = /\bMULTI[ ._-]?AI\b/i;
 const enVf = (t) => VF.test(t) && !IA.test(t) && !(VFQ.test(t) && !VF_FRANCE.test(t));
@@ -106,10 +105,14 @@ export function vffPossible(releases, langue, today) {
     .filter((r) => types.includes(r.type)).map((r) => (r.release_date || "").slice(0, 10)).filter(Boolean).sort();
   const frNumerique = dates([4, 5, 6], "FR")[0];
   if (frNumerique && frNumerique <= today) return true;
+  // Sortie en salle en France avant le fichier américain : ne suffit plus (2026-11-06). Le fichier du store américain
+  // porte souvent la VFQ même quand une VFF existe pour les salles (Primetime, Your Mother Your Mother Your Mother : en
+  // salle en France avant, VFQ seulement). Sans preuve dans les noms (TRUEFRENCH, VFF… : vff, comme Verity et The Dog
+  // Stars), la VFF n'est sûre qu'avec la sortie numérique française ; avant, c'est le doute (affiche coupée en deux).
+  // Pas de sortie numérique américaine du tout : les sources ne viennent pas d'un store américain.
   const fr = dates([2, 3, 4, 5, 6], "FR")[0];
   if (!fr || fr > today) return false;
-  const us = dates([4], "US")[0];
-  return !us || fr <= us;
+  return !dates([4], "US")[0];
 }
 
 /** La prochaine sortie numérique en France, annoncée (AAAA-MM-JJ) : la VFF arrive avec elle. Sinon null. */
@@ -289,10 +292,12 @@ export const qualiteDeQ = (q) => (q && typeof q === "object"
  * L'avis VF du jour de l'addon pour une vidéo récente (« movie/tt… », « series/tt…:S:1 ») : /sf/…, avec RELAIS_KEY
  * (Lumio, qui lit la langue dans le fichier, sinon StreamFusion ; gardé par l'addon : « pas de VF » 3 heures). Le même
  * que celui des rangées et des fiches. { vf, sources, qualite? }, ou null (pas d'avis : plafond, panne). Gardé ici
- * 3 heures, autant qu'un « pas de VF » chez l'addon : le redemander plus tôt n'apporterait rien et coûterait un appel.
+ * 3 heures ; « pas de VF » une heure seulement : les fiches et les rangées mettent à jour l'avis commun de l'addon
+ * entre-temps (Heart of the Beast : VF pour l'addon à 23 h, affiche encore grise une heure plus tard). Le redemander ne
+ * coûte qu'une requête à l'addon, qui le relit dans sa mémoire commune sans appeler le débrideur.
  */
 let avisMemo = new Map();
-const AVIS_MEMO_MS = 3 * 3600000;
+const AVIS_MEMO_MS = 3 * 3600000, AVIS_MEMO_NON_MS = 3600000;
 export function avisDuJour(addon, video, cle, fetchImpl = fetch) {
   const hit = avisMemo.get(video);
   if (hit && Date.now() < hit.until) return hit.promesse;
@@ -304,8 +309,10 @@ export function avisDuJour(addon, video, cle, fetchImpl = fetch) {
       return d && typeof d.vf === "boolean" ? d : null;
     } catch { return null; }
   })();
+  const memo = { promesse, until: Date.now() + AVIS_MEMO_MS };
+  promesse.then((d) => { if (d && d.vf === false) memo.until = Math.min(memo.until, Date.now() + AVIS_MEMO_NON_MS); });
   avisMemo.delete(video);
-  avisMemo.set(video, { promesse, until: Date.now() + AVIS_MEMO_MS });
+  avisMemo.set(video, memo);
   while (avisMemo.size > MAX_MEMO) avisMemo.delete(avisMemo.keys().next().value);
   return promesse;
 }

@@ -77,7 +77,7 @@ import { routeCpu } from "./cpu.js";
 import { routeReserve, nettoyerReserve } from "./reserve.js";
 import { looksDescriptive, aiTitles, aiMiss, resolveTitles, aiRecap, aiProfile, aiProfiles, aiRenewal, aiEnv, AI_WAIT_MS } from "./ai.js";
 
-const VERSION = "5.55.0";
+const VERSION = "5.58.0";
 // Format des réponses gardées dans le cache Cloudflare (pages de rangées, fiches) : à augmenter seulement quand
 // ce qu'elles contiennent change (champ ajouté, règle d'affichage…). Avec VERSION dans les clés, chaque mise à jour
 // vidait tous les caches d'un coup : pic d'appels TMDB et Gemini. Les réponses de Gemini ont leurs propres clés (ai.js).
@@ -666,18 +666,32 @@ function releaseDates(releases, types, countries) {
  *     la première sortie numérique (vidéo, télé) où que ce soit, sinon la première salle + 45 jours.
  * La même fonction que dispoChezSoi dans affiches/lib/statut.js : la fiche et l'affiche disent le même jour.
  */
-export function dispoChezSoi(releases, langue, vod = null) {
+export function dispoChezSoi(releases, langue, vod = null, plateformeVf = false) {
   if (langue !== "fr") {
     const numerique = releaseDates(releases, [4], ["US"])[0];
     if (numerique) return { date: numerique, vers: false };
+    // Déjà sur une plateforme d'abonnement en France qui le double (abonnementVf) sans sortie numérique américaine :
+    // sa sortie numérique française est le jour d'arrivée chez soi. The Mongoose (Prime Video, le 4 novembre) était
+    // estimé « salle américaine + délai », en décembre, et manquait à « Dispo depuis peu ».
+    const francaise = plateformeVf ? releaseDates(releases, [4], ["FR"])[0] : "";
+    if (francaise) return { date: francaise, vers: false };
     const salle = releaseDates(releases, [2, 3], ["US"])[0];
+    // Date déjà annoncée par le studio (dvdsreleasedates.com, dans la table de la nuit) : sûre, plus une estimation.
+    const annonce = vod && vod.film && /^\d{4}-\d{2}-\d{2}$/.test(vod.film.annonce || "") ? vod.film.annonce : "";
+    if (salle && annonce) return { date: annonce, vers: false };
     if (salle) return { date: addDays(salle, fenetreVod(vod)), vers: true };
   }
   const connu = releaseDates(releases, [4, 5, 6])[0];
   if (connu) return { date: connu, vers: false };
+  // Film en français : la chronologie des médias, la vidéo à la demande 4 mois après la salle en France (avant, salle +
+  // 45 jours : Les Misérables, Moulin, Karma « Dispo vers le 28 nov. » au lieu de février).
+  const salleFr = langue === "fr" ? releaseDates(releases, [2, 3], ["FR"])[0] : "";
+  if (salleFr) return { date: addMonths(salleFr, VOD_FR_MOIS), vers: true };
   const salle = releaseDates(releases, [2, 3])[0];
   return salle ? { date: addDays(salle, SALLE_JOURS), vers: true } : { date: "", vers: false };
 }
+const VOD_FR_MOIS = 4;
+const addMonths = (iso, n) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() + n); return d.toISOString().slice(0, 10); };
 
 /**
  * Sur une plateforme (abonnement, gratuit, pub, location, achat) en France (watch/providers TMDB). La France seule :
@@ -1304,7 +1318,7 @@ async function toMetas(env, ctx, results, kind, opts, today) {
     const recent = kind === "movie" && filmRecent(infos[i].releases, today);
     const lu = recent ? avecAbonnement(sources.get(ids[i]), infos[i].abonnementVf) : null;
     // En VF chez soi aujourd'hui : la date américaine passée, ou les sources (voir enVfChezSoi), comme les affiches.
-    const chezSoi = kind === "movie" ? dispoChezSoi(infos[i].releases, it.original_language, infos[i].vod) : { date: "", vers: false };
+    const chezSoi = kind === "movie" ? dispoChezSoi(infos[i].releases, it.original_language, infos[i].vod, infos[i].abonnementVf) : { date: "", vers: false };
     const vf = kind === "movie" && enVfChezSoi(infos[i].releases, it.original_language, today, lu, infos[i].plateformeFr, infos[i].vod);
     // « Pas encore en VF » : le fichier est sorti (date passée), ses sources n'ont pas la VF. Avant la date, la date.
     const vo = sansVf(lu) && !(chezSoi.date > today);
@@ -1350,6 +1364,8 @@ async function toMetas(env, ctx, results, kind, opts, today) {
       _vf: vf,
       // En VF d'après les sources (pas seulement d'après la date) : « Dispo depuis peu » accepte alors une date estimée.
       _vfLu: !!(lu && lu.vf),
+      // VFF prouvée par les noms des sources (TRUEFRENCH, VFF, VF2…) : déjà regardable en VF, même avant la date officielle.
+      _vffSur: !!(lu && lu.vf && lu.vff),
       // Le doute VFF ou VFQ : pas dans « Dispo depuis peu », dans « Bientôt dispo » à la date française annoncée.
       _vfq: !!(lu && lu.vfqPossible),
       _vffLe: lu && lu.vfqPossible ? lu.vffLe || "" : "",
@@ -1443,7 +1459,7 @@ export const oublierScenes = SCENES.oublier;
 const tropDur = (age, cfg) => Boolean(cfg && cfg.f && age != null && age > cfg.f);
 
 /** Une fiche sans les champs internes de toMetas (« _digital »…), telle qu'envoyée à Nuvio. */
-const sansInternes = ({ _digital, _guess, _vf, _vfLu, _vfq, _vffLe, _dejaVf, _vo, ...m }) => m;
+const sansInternes = ({ _digital, _guess, _vf, _vfLu, _vffSur, _vfq, _vffLe, _dejaVf, _vo, ...m }) => m;
 
 /** Paramètres TMDB d'une recherche « discover », avec les règles de qualité communes
  *  et les réglages de la config (pays, genres masqués, note et année minimales, famille). */
@@ -2011,7 +2027,10 @@ function trierRangeeVf(def, today, metas) {
   const from = addDays(today, def.digital[0]), to = addDays(today, def.digital[1]);
   // « Dispo depuis peu » : une date estimée passée compte si les sources confirment la VF (la fiche TMDB, gardée un jour,
   // peut ne pas encore avoir la sortie numérique : Verity le 27 octobre).
-  const when = (m) => (future && m._vffLe) || m._digital || (future || m._vfLu ? m._guess : "");
+  // Et une VFF prouvée par ses sources avant la date annoncée (Heart of the Beast : TRUEFRENCH et VF2 le 5 novembre, date
+  // officielle le 10) : dispo depuis aujourd'hui.
+  const when = (m) => (future && m._vffLe) || (!future && m._vffSur && m._digital > today ? today : m._digital)
+    || (future || m._vfLu ? m._guess : "");
   // « Bientôt dispo » : à la fin, ceux dont on ne sait pas quand la VF viendra (pas encore en VF, doute sans date française).
   const sansDate = (m) => m._vo || (m._vfq && !m._vffLe);
   return metas
@@ -3004,7 +3023,13 @@ async function collections(cfg, url) {
         .map((f) => (url && f.sources ? { ...f, sources: f.sources.map((src) => notreAddon(src, addonId(url))) } : f));
       // « Comme l'accueil » : Nuvio TV ouvre la tuile avec la disposition de l'accueil, et ses
       // bandes-annonces au survol si elles y sont activées (les onglets n'en ont pas).
-      return { ...c, ...(cfg.ca ? { viewMode: "FOLLOW_LAYOUT" } : {}), folders };
+      // Vidéo de fond ou GIF retirés au choix de chacun : l'image fixe de la tuile reste.
+      const sans = (f) => {
+        if (!cfg.sv && !cfg.sg) return f;
+        const { heroVideoUrl, ...g } = f;
+        return { ...(cfg.sv ? g : f), ...(cfg.sg ? { focusGifEnabled: false } : {}) };
+      };
+      return { ...c, ...(cfg.ca ? { viewMode: "FOLLOW_LAYOUT" } : {}), folders: folders.map(sans) };
     })
     .filter((c) => c.folders.length);
 }
