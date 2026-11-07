@@ -8,6 +8,8 @@
 // touchées (celles faites dans Nuvio restent telles quelles). Le choix est gardé dans ce navigateur.
 // Si la page d'origine change de forme, elle reste telle quelle.
 
+import { NOUVEAUTES } from "./nouveautes.js";
+
 const CLE = "nvs-gifs";
 
 const CSS = `
@@ -68,3 +70,11 @@ export function sansChoixTuilesSalle2(page) {
 
 /** Réglages d'un lien sans les choix de tuiles de la salle 2 (masqués dans cette copie). */
 export const sansChoixTuiles = (cfg) => (cfg && (cfg.sv || cfg.sg) ? { ...cfg, sv: false, sg: false } : cfg);
+
+// Nouveautés (page /nouveautes et bandeau du hall) : l'annonce d'origine des interrupteurs de la salle 2 est remplacée
+// par celle du choix à l'envoi. Repérée par ses deux noms d'interrupteurs ; sans elle, rien ne change.
+export const NOUVEAUTE_TUILES = "Collections : au moment de « Tout envoyer dans Nuvio », l'interrupteur « Tuiles animées » sous « Les collections » : décoche-le pour des tuiles toujours fixes, sans GIF ni vidéo de fond. Pratique aussi si, sur Nuvio TV avec « Arrière-plan en plein écran », les tuiles disparaissent quelques secondes quand tu t'arrêtes dessus.";
+for (const n of NOUVEAUTES) {
+  if (!Array.isArray(n.points)) continue;
+  n.points = n.points.map((p) => (typeof p === "string" && p.includes("« Vidéo de fond des tuiles »") && p.includes("« Tuiles animées »") ? NOUVEAUTE_TUILES : p));
+}
