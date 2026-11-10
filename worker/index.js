@@ -77,7 +77,7 @@ import { routeCpu } from "./cpu.js";
 import { routeReserve, nettoyerReserve } from "./reserve.js";
 import { looksDescriptive, aiTitles, aiMiss, resolveTitles, aiRecap, aiProfile, aiProfiles, aiRenewal, aiEnv, AI_WAIT_MS } from "./ai.js";
 
-const VERSION = "5.59.0";
+const VERSION = "5.61.1";
 // Format des réponses gardées dans le cache Cloudflare (pages de rangées, fiches) : à augmenter seulement quand
 // ce qu'elles contiennent change (champ ajouté, règle d'affichage…). Avec VERSION dans les clés, chaque mise à jour
 // vidait tous les caches d'un coup : pic d'appels TMDB et Gemini. Les réponses de Gemini ont leurs propres clés (ai.js).
@@ -579,7 +579,8 @@ function sansVfListe() {
       .then((r) => (r.ok ? r.json() : null)).catch(() => null)
       .then((d) => {
         const lu = d && Array.isArray(d.films);
-        if (lu) etat.films = new Set(d.films);
+        // Films et séries ensemble (data/sans-vf.json : « films », « series » depuis le 2026-11-08) : des identifiants IMDb.
+        if (lu) etat.films = new Set([...d.films, ...(Array.isArray(d.series) ? d.series : [])]);
         etat.until = Date.now() + (lu ? VOD_MS : VOD_ECHEC_MS);
         etat.promesse = null;
         return etat.films;
@@ -1047,8 +1048,9 @@ async function avisDuJour(env, cles, origine = "affiches") {
  * (Locataires : « 2 sources trouvées, aucune prête chez AllDebrid » ; « Aucune source trouvée » : le site cherché était
  * peut-être en panne). { plafond: true } : son plafond du jour atteint (voir PLAFONDS), à part de celui des rangées.
  */
-async function avisSansVf(env, imdb) {
-  const cle = `movie/${imdb}`;
+async function avisSansVf(env, imdb, serie = false) {
+  // Série : son premier épisode (S1 É1), comme les affiches jugent une série.
+  const cle = serie ? `series/${imdb}:1:1` : `movie/${imdb}`;
   const torrentio = (await lireVf(env, [cle])).get(cle);
   if (!torrentio || !(torrentio.sources > 0)) return { etat: "doute" };
   if (torrentio.vf) return { etat: "vf" };
@@ -2244,9 +2246,9 @@ async function catalog(env, ctx, type, id, extra, today, cfg, prefixe = "") {
   // Fiches TMDB de la page (extraInfo) et celles restées sans réponse (limite d'appels de TMDB, panne).
   const bilan = { vus: 0, rates: 0 };
   const lues = await catalogPage(env, ctx, type, id, extra, today, cfg, bilan, prefixe);
-  // Les vieux films sans VF (sansVfListe) : hors des rangées, trouvables par la recherche seulement.
-  const sansVfConnus = type === "movie" && !extra.search ? await sansVfListe() : new Set();
-  const metas = sansVfConnus.size ? lues.filter((m) => !sansVfConnus.has(m.imdb_id)) : lues;
+  // Les vieux films et séries sans VF (sansVfListe) : hors des rangées, trouvables par la recherche seulement.
+  const sansVfConnus = !extra.search ? await sansVfListe() : new Set();
+  const metas = sansVfConnus.size ? lues.filter((m) => !sansVfConnus.has(m.imdb_id || m.id)) : lues;
   metas.partial = lues.partial;
   // Plus d'une sur dix sans ses infos (IMDb, dates, logo, bande-annonce) : page incomplète, gardée 5 min seulement.
   if (metas.length && bilan.rates > bilan.vus / 10) metas.degrade = true;
@@ -2386,29 +2388,40 @@ function trailersOf(videos) {
 const BA_VF = donneesDuDepot("data/bandes-annonces-vf.json", "titres");
 export const oublierBandesAnnonces = BA_VF.oublier;
 
-/** Bande-annonce VF d'un titre ({ key: identifiant YouTube, title, hd }, ou { key: null }). */
+/**
+ * Bande-annonce du fichier pour un titre ({ key: identifiant YouTube, title, vost }, ou { key: null }) : une VF, ou une
+ * VOSTFR (vost) quand YouTube n'a pas de VF.
+ */
 async function vfTrailer(kind, imdb) {
   const table = await BA_VF.lire();
   const x = table && table[`${kind}:${imdb}`];
-  return x && x.k ? { key: x.k, title: x.t, hd: x.hd !== false } : { key: null };
+  return x && x.k ? { key: x.k, title: x.t, vost: x.l === "vost" } : { key: null };
 }
 
-/** Les VF du fichier pour les rangées (Nuvio y lance la bande-annonce sans ouvrir la fiche) : { "movie:tt…": { key, hd } }. */
+/** Celles du fichier pour les rangées (Nuvio y lance la bande-annonce sans ouvrir la fiche) : { "movie:tt…": { key, vost } }. */
 async function readVfIndex() {
   const table = (await BA_VF.lire()) || {};
   const out = {};
-  for (const [cle, x] of Object.entries(table)) if (x && x.k) out[cle] = { key: x.k, hd: x.hd !== false };
+  for (const [cle, x] of Object.entries(table)) if (x && x.k) out[cle] = { key: x.k, vost: x.l === "vost" };
   return out;
 }
 
-/** Bandes-annonces d'un titre de rangée : celles de TMDB, avec la VF de l'index si TMDB n'en a pas. */
+/**
+ * Les bandes-annonces de TMDB (déjà VF, puis VOSTFR, puis VO) avec celle du fichier à sa place, partout pareil (rangées,
+ * fiches, Nuvio TV comme AppTV) : la VF d'abord, sinon la VOSTFR, sinon la VO. Celle du fichier ne passe devant que si
+ * TMDB n'a rien d'aussi bien. La VOSTFR garde « VOSTFR » dans son nom (AppTV reconnaît la langue au nom).
+ */
+function withFileTrailer(trailers, vf) {
+  if (!vf || !vf.key) return trailers;
+  if (vf.vost ? trailers.some((t) => t.lang === "fr") : trailers.some((t) => isVf(t.lang, t.name))) return trailers;
+  const name = vf.vost ? (/\bVOST/i.test(vf.title || "") ? vf.title : "VOSTFR") : vf.title;
+  const item = { source: vf.key, ytId: vf.key, type: "Trailer", ...(name ? { name } : {}), lang: "fr" };
+  return [item, ...trailers];
+}
+
+/** Bandes-annonces d'un titre de rangée : celles de TMDB, avec celle de l'index à sa place (withFileTrailer). */
 function catalogTrailers(trailers, vf) {
-  let list = trailers;
-  if (vf && vf.key && !trailers.some((t) => isVf(t.lang, t.name))) {
-    const vfItem = { source: vf.key, ytId: vf.key, type: "Trailer", lang: "fr" };
-    // Même règle que la fiche : une VF pas en HD passe après la bande-annonce de TMDB.
-    list = vf.hd === false && trailers.length ? [trailers[0], vfItem, ...trailers.slice(1)] : [vfItem, ...trailers];
-  }
+  const list = withFileTrailer(trailers, vf);
   return list.length ? { trailers: list, trailerStreams: list.map((t) => ({ ytId: t.ytId })) } : {};
 }
 
@@ -2443,7 +2456,8 @@ async function meta(env, kind, id, cfg, today, ctx, opts = {}) {
     ? ((releases.find((r) => r.iso_3166_1 === cfg.g) || {}).release_dates || []).map((r) => r.certification).find(Boolean)
     : ((brut.content_ratings && brut.content_ratings.results || []).find((r) => r.iso_3166_1 === cfg.g) || {}).rating;
   const trailers = trailersOf(brut.videos && brut.videos.results);
-  // Pas de VF sur TMDB : celle préparée la nuit (data/bandes-annonces-vf.json), attendue en fin de fiche.
+  // Pas de VF sur TMDB : celle préparée la nuit (data/bandes-annonces-vf.json, une VF ou à défaut une VOSTFR), attendue
+  // en fin de fiche.
   const vfJob = short === "fr" && imdb && !trailers.some((t) => isVf(t.lang, t.name)) ? vfTrailer(kind, imdb).catch(() => null) : null;
   const keywords = ((movie ? brut.keywords && brut.keywords.keywords : brut.keywords && brut.keywords.results) || []).map((k) => k.name);
   // Lignes écrites par l'IA, lancées dès que possible, pendant que le reste de la fiche se construit :
@@ -2490,7 +2504,7 @@ async function meta(env, kind, id, cfg, today, ctx, opts = {}) {
   ]);
   // En VO seulement (comme pas sorti : seule la VF compte) : d'après les sources seulement (voir releaseNote).
   const etat = lu ? { vf: lu.vf, vo: sansVf(lu), vfq: !!lu.vfqPossible, vffLe: lu.vffLe, vffVers: !!lu.vffVers } : { vf: movie && vfSurPlateforme(wp, d.original_language, d.keywords), surPlateforme: plateformeFrance(wp) };
-  const note = movie && (await sansVfListe()).has(imdb) ? "Sans VF"
+  const note = (await sansVfListe()).has(imdb) ? "Sans VF"
     : movie ? releaseNote(releases, d.original_language, today, etat, vod) : await noteSerie(env, d, imdb, wp, today);
   // La même date que l'affiche et les rangées : la sortie numérique américaine (dispoChezSoi), ou son estimation.
   const dispo = movie ? dispoChezSoi(releases, d.original_language, vod).date : "";
@@ -2636,13 +2650,10 @@ async function meta(env, kind, id, cfg, today, ctx, opts = {}) {
   m.description = [m.description, extras.filter(Boolean).join("\n"), recapLine].filter(Boolean).join("\n\n") || undefined;
   if (vfJob) {
     const vf = await vfJob;
-    if (vf && vf.key) {
-      const vfItem = { source: vf.key, ytId: vf.key, type: "Trailer", name: vf.title, lang: "fr" };
-      // VF pas en HD sur YouTube : la bande-annonce HD de TMDB reste en premier (celle du hero), la VF
-      // juste après dans la liste de la fiche.
-      const first = trailers[0] && ((d.videos && d.videos.results) || []).find((v) => v.key === trailers[0].source);
-      m.trailers = vf.hd === false && first && first.size >= 720 ? [trailers[0], vfItem, ...trailers.slice(1)] : [vfItem, ...trailers];
-      m.trailerStreams = m.trailers.map((t) => ({ ytId: t.ytId }));
+    const list = withFileTrailer(trailers, vf);
+    if (list !== trailers) {
+      m.trailers = list;
+      m.trailerStreams = list.map((t) => ({ ytId: t.ytId }));
     }
   }
   return m;
@@ -2944,12 +2955,13 @@ async function trailer(env, kind, id) {
       || (b.type === "Trailer") - (a.type === "Trailer") || (b.official === true) - (a.official === true))[0];
   const fr = pick(await tmdb(env, path, {}, "fr-FR"));
   if (fr && isVf(fr.iso_639_1, fr.name)) return { key: fr.key, lang: fr.iso_639_1 };
-  // Pas de VF sur TMDB : Allociné + YouTube, sinon la VOSTFR, sinon la VO.
+  // Pas de VF sur TMDB : celle du fichier (YouTube, la nuit), sinon la VOSTFR de TMDB, sinon celle du fichier, sinon la VO.
   const d = await tmdb(env, `/${kind === "series" ? "tv" : "movie"}/${tmdbId}`, { append_to_response: "external_ids" });
   const imdb = (d.imdb_id || (d.external_ids && d.external_ids.imdb_id)) || null;
-  const vf = imdb ? await vfTrailer(kind, imdb, (d.title || d.name || "").trim(), (d.release_date || d.first_air_date || "").slice(0, 4)).catch(() => null) : null;
-  if (vf && vf.key) return { key: vf.key, lang: "fr" };
-  if (fr) return { key: fr.key, lang: fr.iso_639_1 };
+  const vf = imdb ? await vfTrailer(kind, imdb).catch(() => null) : null;
+  if (vf && vf.key && !vf.vost) return { key: vf.key, lang: "fr" };
+  if (fr) return { key: fr.key, lang: fr.iso_639_1, vost: true };
+  if (vf && vf.key) return { key: vf.key, lang: "fr", vost: true };
   const v = pick(await tmdb(env, path, {}, "en-US"));
   return { key: v ? v.key : null, lang: v ? v.iso_639_1 : null };
 }
@@ -3355,7 +3367,9 @@ const app = {
       }
       const body = await request.json().catch(() => ({}));
       if (!/^tt\d{1,10}$/.test(body.imdb || "")) return new Response(JSON.stringify({ etat: "doute" }), { headers: entete });
-      return new Response(JSON.stringify(await avisSansVf(env, body.imdb)), { headers: entete });
+      // type « series » renvoyé tel quel : le script sait que cette version de l'addon juge bien les séries.
+      const serie = body.type === "series";
+      return new Response(JSON.stringify({ ...(await avisSansVf(env, body.imdb, serie)), type: serie ? "series" : "movie" }), { headers: entete });
     }
     if (path === "/tendances/tri" && request.method === "POST") {
       if (!same(request.headers.get("x-tri") || "", await triCle(env))) return json({ error: "interdit" }, 0);

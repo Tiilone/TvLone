@@ -313,6 +313,32 @@ test("bande_annonce_vf_du_fichier", async () => {
   assert.ok(!calls.some((u) => /allocine\.fr|youtube\.com\/results|query\.wikidata\.org/.test(u)));
 });
 
+// L'ordre partout : VF, sinon VOSTFR, sinon VO. La VOSTFR du fichier passe devant la VO de TMDB, pas devant sa VOSTFR,
+// et garde « VOSTFR » dans son nom (AppTV reconnaît la langue au nom).
+test("bande_annonce_vostfr_du_fichier", async () => {
+  for (const [id, tmdbVideos, attendu] of [
+    [7402, [{ key: "vo_trailer1", iso_639_1: "en" }], ["vostfichier", "vo_trailer1"]],
+    [7403, [{ key: "vo_trailer1", iso_639_1: "en" }, { key: "vostf_tmdb1", iso_639_1: "fr", name: "Bande-annonce VOSTFR" }], ["vostf_tmdb1", "vo_trailer1"]],
+  ]) {
+    oublierBandesAnnonces();
+    oublierInfos();
+    const sortie = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+    globalThis.fetch = async (url) => {
+      const u = decodeURIComponent(String(url));
+      if (u.endsWith("/data/bandes-annonces-vf.json")) return Response.json({ titres: { [`movie:tt${id}`]: { k: "vostfichier", t: "Film - Bande-annonce VOSTFR", hd: true, l: "vost" } } });
+      if (u.includes(`/movie/${id}?`)) return Response.json({ id, imdb_id: `tt${id}`, title: "Film", release_date: sortie(400),
+        videos: { results: tmdbVideos.map((v) => ({ site: "YouTube", type: "Trailer", size: 1080, ...v })) }, "watch/providers": { results: {} } });
+      if (u.includes("/discover/movie")) return Response.json({ results: [{ id, title: "Film", release_date: sortie(400), original_language: "en" }], page: 1, total_pages: 1 });
+      return new Response("{}");
+    };
+    const m = (await (await get(`/meta/movie/tmdb:${id}.json`)).json()).meta;
+    assert.deepEqual(m.trailers.map((t) => t.ytId), attendu);
+    assert.match(m.trailers[0].name, /VOST/);
+    const { metas } = await (await get(`/${seg({ x: [{ n: `Films ${id}`, t: 0 }] })}/catalog/movie/perso-0.json`)).json();
+    assert.equal(metas[0].trailers[0].ytId, attendu[0]);
+  }
+});
+
 // ---------- audit de sécurité ----------
 test("mot_de_passe_trop_simple_refuse", async () => {
   for (const ADMIN_PASSWORD of ["choisis-un-mot-de-passe", "court"]) {
@@ -1717,7 +1743,9 @@ const avisSansVf = async (reponses, envPlus = {}) => {
   };
   const e = { ...env, LIENS: fakeD1(), LUMIO_URL: "https://lumio.test", STREAMFUSION_URL: "https://sf.test", ...envPlus };
   const res = await worker.fetch(new Request("https://x/sans-vf/avis", { method: "POST", headers: { "x-tri": cleInterne(env.TMDB_API_KEY) }, body: JSON.stringify({ imdb: "tt1" }) }), e, ctx);
-  return res.json();
+  const { type, ...avis } = await res.json();
+  assert.equal(type, "movie");
+  return avis;
 };
 const REFUS_LUMIO = [{ name: "⚙️ Lumio", description: "5 sources,\nmais aucune ne passe vos filtres\nAssouplissez « Langues » dans les réglages du profil." }];
 const REFUS_SF = [{ name: "🚩 Stream-Fusion", title: "Aucun résultat trouvé, 9 exclus en raison du ou des paramètre(s) suivant(s) : exclusion langue", url: "https://sf.test/x" }];
@@ -1748,6 +1776,24 @@ test("avis_sans_vf_le_doute_ne_marque_rien", async () => {
 });
 test("avis_sans_vf_son_propre_plafond", async () => {
   assert.deepEqual(await avisSansVf({ torrentio: TORRENTIO_NON, lumio: REFUS_LUMIO, sf: REFUS_SF }, { LIENS: null }), { plafond: true });
+});
+// Série (Bad Genius: The Series) : jugée sur son premier épisode, comme les affiches ; le type est renvoyé pour que le
+// script sache que cet addon juge bien les séries.
+test("avis_sans_vf_d_une_serie", async () => {
+  const lus = [];
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    lus.push(u);
+    if (u.includes("/vf.json")) return Response.json({ "series/tt1:1:1": TORRENTIO_NON });
+    if (u.startsWith("https://lumio.test")) return Response.json({ streams: REFUS_LUMIO });
+    if (u.startsWith("https://sf.test")) return Response.json({ streams: REFUS_SF });
+    return new Response("{}");
+  };
+  const e = { ...env, LIENS: fakeD1(), LUMIO_URL: "https://lumio.test", STREAMFUSION_URL: "https://sf.test" };
+  const res = await worker.fetch(new Request("https://x/sans-vf/avis", { method: "POST", headers: { "x-tri": cleInterne(env.TMDB_API_KEY) },
+    body: JSON.stringify({ imdb: "tt1", type: "series" }) }), e, ctx);
+  assert.deepEqual(await res.json(), { etat: "non", type: "series" });
+  assert.ok(lus.some((u) => u.startsWith("https://lumio.test/stream/series/tt1:1:1.json")), lus.join(", "));
 });
 test("avis_sans_vf_refuse_sans_la_cle", async () => {
   for (const headers of [{}, { "x-tri": "fausse" }]) {
