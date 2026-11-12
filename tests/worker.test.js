@@ -1852,6 +1852,70 @@ test("vfq_possible_dans_les_rangees_et_la_fiche", async () => {
   assert.doesNotMatch((await (await get("/meta/movie/tmdb:6.json")).json()).meta.description || "", /VFQ/);
 });
 
+// Une VFQ en vue chez Torrentio (quebec), mais la VFF prouvée par les noms chez Lumio (Resident Evil, le 11 novembre
+// 2026 : un « MULTi.VFQ » chez Torrentio, des fichiers TRUEFRENCH chez Lumio ; la fiche disait « VFQ possible · VFF le
+// 16 janv. »). Lumio est lu, et seule une VFF prouvée change l'avis : un « MULTi » 🇫🇷 seul laisse la VFQ en vue.
+test("vfq_en_vue_levee_par_la_vff_prouvee_chez_lumio", async () => {
+  const jour = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+  const durees = [];
+  const put = globalThis.caches.default.put;
+  globalThis.caches.default.put = async (req, res) => {
+    if (/\/meta\//.test(req.url)) durees.push(Number((/max-age=(\d+)/.exec(res.headers.get("Cache-Control") || "") || [])[1]));
+    return put(req, res);
+  };
+  const lancer = async (fichier) => {
+    oublierInfos(); store.clear();
+    let lumio = 0;
+    globalThis.fetch = async (url) => {
+      const u = String(url);
+      calls.push(u);
+      if (u.startsWith("https://lumio.test/p/stream/movie/tt903.json")) {
+        lumio++;
+        return Response.json({ streams: [{ name: "[AD⚡️] Lumio", description: `4K • WEB-DL • DV / 🌍 🇫🇷 🇬🇧 / 🔎 C411 / 🗂️ ${fichier}`, url: "https://lumio.test/play/a" }] });
+      }
+      if (u.includes("/vf.json")) return sourcesDe({ tt903: { vf: true, sources: 9, langue: "multi", quebec: true, vfqPossible: true, vffLe: jour(60), vffVers: true } })(u);
+      if (/\/movie\/3\?/.test(u)) return Response.json({ ...filmVod(3, "en", [["FR", 3, jour(-56)], ["US", 3, jour(-54)], ["US", 4, jour(-8)]]), title: "Resident Evil" });
+      return Response.json({ results: [] });
+    };
+    const e = { ...env, LUMIO_URL: "https://lumio.test/p/manifest.json", LIENS: fakeD1() };
+    const fiche = (await (await worker.fetch(new Request("https://x/meta/movie/tmdb:3.json"), e, ctx)).json()).meta;
+    return { description: fiche.description || "", lumio };
+  };
+  const prouvee = await lancer("Resident.Evil.2026.MULTi.TRUEFRENCH.2160p.WEB-DL.H265-Slay3R.mkv");
+  assert.equal(durees.at(-1), 43200, "VF là : gardée 12 h");
+  assert.ok(prouvee.lumio >= 1, "Lumio lu malgré la VFQ en vue");
+  assert.doesNotMatch(prouvee.description, /VFQ/);
+  // En avance sur sa date française (salle en France + 4 mois) : la fiche le dit, avec le jour où on l'a vue (vffVu, même
+  // au premier avis), pour que l'Agenda d'AppTV la montre.
+  assert.match(prouvee.description, /^📅 Dispo en VFF depuis le \d{1,2} [a-zéû]+\.? · en avance\./);
+  const multi = await lancer("Resident.Evil.2026.MULTi.2160p.WEB.H265-SUPERFLU.mkv");
+  assert.match(multi.description, /VFQ possible/);
+  // Une fiche qui attend sa VF : gardée une heure seulement (sa VF peut arriver dans la journée).
+  assert.equal(durees.at(-1), 3600);
+});
+
+// La VFF arrivée après la sortie (vffDepuis : en avance sur la date française, ou après la VO) : la fiche dit le jour, et
+// « Dispo depuis peu » range le film à ce jour-là, en tête le jour même (Resident Evil : en VO le 3 novembre, en VFF le 11).
+test("vff_arrivee_en_tete_de_dispo_depuis_peu", async () => {
+  const jour = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
+  oublierInfos(); store.clear();
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    calls.push(u);
+    if (u.includes("/vf.json")) return sourcesDe({ tt903: { vf: true, sources: 9, vff: true, vfq: { u: 1, x: null, p: 0, f: 1, a: 0 }, vffDepuis: today }, tt904: { vf: true, sources: 9 } })(u);
+    if (u.includes("/discover/movie")) return Response.json({ results: [3, 4].map((id) => ({ id, title: id === 3 ? "Evil" : "Autre", original_language: "en", release_date: jour(-60), popularity: id })), page: 1, total_pages: 1 });
+    const m = /\/movie\/([34])\?/.exec(u);
+    if (m && m[1] === "3") return Response.json({ ...filmVod(3, "en", [["FR", 3, jour(-56)], ["US", 3, jour(-54)], ["US", 4, jour(-8)]]), title: "Evil" });
+    if (m) return Response.json({ ...filmVod(4, "en", [["US", 3, jour(-50)], ["US", 4, jour(-2)]]), title: "Autre" });
+    return Response.json({ results: [] });
+  };
+  const metas = (await (await get("/catalog/movie/accueil-vod-semaine.json")).json()).metas;
+  assert.deepEqual(metas.map((m) => m.name), ["Evil", "Autre"]);
+  assert.match(metas[0].description, /^📅 Dispo en VFF depuis le .+ · en avance\./);
+  assert.equal(metas[0]._vffDepuis, undefined, "champ interne retiré");
+});
+
 // « Les plus attendus » : la date de dispo chez soi après celle du cinéma (Scrooge, le 8 novembre 2026 : « Au cinéma le
 // 11 nov. » seulement, et l'Agenda d'AppTV le rangeait au jour du cinéma).
 test("plus_attendus_disent_aussi_la_dispo_chez_soi", async () => {

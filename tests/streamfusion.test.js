@@ -1,6 +1,6 @@
 import { test, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import worker, { oublierAvis, lireVfPhoto, avecAvisDuJour } from "../worker/index.js";
+import worker, { oublierAvis, lireVfPhoto, avecAvisDuJour, tourneeVfq } from "../worker/index.js";
 import { fakeD1 } from "./support/d1.mjs";
 
 let store, appels, env;
@@ -35,8 +35,8 @@ test("streamfusion_avis_cle_cache_et_plafond", async () => {
   assert.equal((await sf("movie/tt801", null)).status, 403);
   assert.equal((await sf("movie/tt801", "mauvaise")).status, 403);
   assert.equal(appels.length, 0);
-  assert.deepEqual(await (await sf("movie/tt801")).json(), { vf: true, sources: 1, qualite: { u: 1, x: "DV", p: 0, f: 0, a: 0 } });
-  assert.deepEqual(await (await sf("movie/tt801")).json(), { vf: true, sources: 1, qualite: { u: 1, x: "DV", p: 0, f: 0, a: 0 } });
+  assert.deepEqual(await (await sf("movie/tt801")).json(), { vf: true, sources: 1, qualite: { u: 1, x: "DV", p: 0, f: 0, a: 0 }, vff: true });
+  assert.deepEqual(await (await sf("movie/tt801")).json(), { vf: true, sources: 1, qualite: { u: 1, x: "DV", p: 0, f: 0, a: 0 }, vff: true });
   assert.equal(appels.length, 1, "gardé : pas redemandé");
   assert.deepEqual(await (await sf("series/tt802:1:1")).json(), { vf: false, sources: 4 });
   assert.deepEqual(await (await sf("movie/tt803")).json(), { plafond: true });
@@ -58,7 +58,7 @@ test("streamfusion_sans_les_flux_filmes_en_salle", async () => {
   };
   const e = { ...env, SF_PLAFOND: "10" };
   assert.deepEqual(await (await sf("movie/tt811", "cle-relais", e)).json(), { vf: false, sources: 0 });
-  assert.deepEqual(await (await sf("movie/tt812", "cle-relais", e)).json(), { vf: true, sources: 1, qualite: { u: 0, x: null, p: 0, f: 1, a: 0 } });
+  assert.deepEqual(await (await sf("movie/tt812", "cle-relais", e)).json(), { vf: true, sources: 1, qualite: { u: 0, x: null, p: 0, f: 1, a: 0 }, vff: true });
 });
 
 // « Aucun résultat » sans source écartée (film sorti en numérique la veille, pas encore de fichier : 空枪) : pas de VF,
@@ -88,7 +88,7 @@ test("lumio_d_abord_streamfusion_en_secours", async () => {
     if (u.startsWith("https://lumio.test/p/stream/")) {
       appels.push(u);
       if (u.includes("tt831")) return Response.json({ streams: [
-        { name: "[AD⚡️] Lumio", description: "4K • WEB-DL • DV | 🇫🇷 🇬🇧 ✓ | 🗂️ Film.2026.MULTi.VF2.2160p.WEB.DV.mkv", url: "https://lumio.test/play/a" },
+        { name: "[AD⚡️] Lumio", description: "4K • WEB-DL • DV | 🇫🇷 🇬🇧 ✓ | 🔎 C411 | 🗂️ Film.2026.MULTi.VF2.2160p.WEB.DV.mkv", url: "https://lumio.test/play/a" },
         { name: "[AD⚡️] Lumio", description: "1080p • WEB-DL | 🇫🇷 ✓ | 🗂️ Film.2026.FRENCH.1080p.WEB.mkv", url: "https://lumio.test/play/b" }] });
       if (u.includes("tt832")) return Response.json({ streams: [{ name: "⚙️ Lumio", description: "68 sources, mais aucune ne passe vos filtres\nAssouplissez « Seulement les langues vérifiées »." }] });
       if (u.includes("tt833")) return new Response("panne", { status: 502 });
@@ -114,8 +114,8 @@ test("lumio_d_abord_streamfusion_en_secours", async () => {
     return new Response("{}");
   };
   const e = { ...env, LUMIO_URL: "https://lumio.test/p/manifest.json", SF_PLAFOND: "10" };
-  const parSf = { vf: true, sources: 1, qualite: { u: 0, x: null, p: 0, f: 1, a: 0 } };
-  assert.deepEqual(await (await sf("movie/tt831", "cle-relais", e)).json(), { vf: true, sources: 2, qualite: { u: 1, x: "DV", p: 0, f: 1, a: 0 } });
+  const parSf = { vf: true, sources: 1, qualite: { u: 0, x: null, p: 0, f: 1, a: 0 }, vff: true };
+  assert.deepEqual(await (await sf("movie/tt831", "cle-relais", e)).json(), { vf: true, sources: 2, qualite: { u: 1, x: "DV", p: 0, f: 1, a: 0 }, vff: true });
   assert.deepEqual(await (await sf("movie/tt832", "cle-relais", e)).json(), { vf: false, sources: 68 });
   assert.deepEqual(await (await sf("movie/tt835", "cle-relais", e)).json(), { vf: false, sources: 1 });
   assert.deepEqual(await (await sf("movie/tt836", "cle-relais", e)).json(), { vf: false, sources: 1 });
@@ -325,26 +325,32 @@ test("reserve_de_la_photo_liberee_le_matin", async () => {
   assert.equal(appels.length, 5);
 });
 
-// De la VFQ seulement chez Torrentio (quebec) : pas de VF, sans demander Lumio, qui la prend pour de la VF (Hope, N°5 des
-// Tendances le 28 octobre 2026) ; l'avis de la photo ne le contredit pas dans les rangées.
-test("vfq_seulement_pas_de_demande_au_debrideur", async () => {
+// De la VFQ seulement chez Torrentio (quebec) : Lumio est demandé, mais il prend la VFQ pour de la VF (Hope, N°5 des
+// Tendances le 28 octobre 2026) : seule une VFF prouvée par ses noms (TRUEFRENCH, VFF, VF2) change l'avis (Resident
+// Evil, le 11 novembre 2026 : « MULTi.VFQ » chez Torrentio, TRUEFRENCH chez Lumio).
+test("vfq_seulement_seule_la_vff_prouvee_la_change", async () => {
   globalThis.fetch = async (url) => {
     const u = String(url);
-    if (u.includes("/vf.json")) return Response.json({ "movie/tt891": { vf: false, sources: 9, langue: "vo", quebec: true } });
+    if (u.includes("/vf.json")) return Response.json({ "movie/tt891": { vf: false, sources: 9, langue: "vo", quebec: true },
+      "movie/tt892": { vf: true, sources: 9, langue: "multi", quebec: true, vfqPossible: true, vffLe: "2027-01-16", vffVers: true } });
     if (u.startsWith("https://lumio.test/p/stream/")) {
       appels.push(u);
-      return Response.json({ streams: [{ name: "[AD⚡️] Lumio", description: "1080p • WEB-DL | 🇫🇷 ✓", url: "https://lumio.test/play/x" }] });
+      const nom = u.includes("tt892") ? "Film.2026.MULTi.TRUEFRENCH.2160p.WEB-DL.mkv" : "Film.2026.MULTi.1080p.WEB.mkv";
+      return Response.json({ streams: [{ name: "[AD⚡️] Lumio", description: `1080p • WEB-DL | 🇫🇷 ✓ | 🔎 C411 | 🗂️ ${nom}`, url: "https://lumio.test/play/x" }] });
     }
     return new Response("{}");
   };
-  const e = { ...env, LUMIO_URL: "https://lumio.test/p/manifest.json", AFFICHES_URL: "https://affiches.test" };
-  const lus = await lireVfPhoto(e, ["movie/tt891"]);
-  assert.equal(appels.length, 0);
-  assert.equal(lus.get("movie/tt891").vf, false);
-  const rangee = new Map([["tt891", { vf: false, sources: 9, quebec: true }]]);
-  await avecAvisDuJour(e, rangee, [["tt891", "movie/tt891"]]);
-  assert.equal(appels.length, 0);
-  assert.equal(rangee.get("tt891").vf, false);
+  const e = { ...env, LUMIO_URL: "https://lumio.test/p/manifest.json", AFFICHES_URL: "https://affiches.test", LIENS: fakeD1() };
+  const lus = await lireVfPhoto(e, ["movie/tt891", "movie/tt892"]);
+  assert.equal(lus.get("movie/tt891").vf, false, "VF sans preuve : la VFQ de Torrentio reste");
+  assert.equal(lus.get("movie/tt891").quebec, true);
+  assert.equal(lus.get("movie/tt892").vff, true, "TRUEFRENCH chez Lumio : la VFF");
+  assert.equal(lus.get("movie/tt892").vfqPossible, undefined);
+  const rangee = new Map([["tt891", { vf: false, sources: 9, quebec: true }], ["tt892", { vf: true, sources: 9, quebec: true, vfqPossible: true, vffLe: "2027-01-16" }]]);
+  await avecAvisDuJour(e, rangee, [["tt891", "movie/tt891"], ["tt892", "movie/tt892"]]);
+  assert.deepEqual(rangee.get("tt891"), { vf: false, sources: 9, quebec: true });
+  const jour = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
+  assert.deepEqual(rangee.get("tt892"), { vf: true, vff: true, sources: 1, vffVu: jour });
 });
 
 // Le doute dans l'addon : Lumio est encore demandé pour vffImpossible (« non » : pas de VF ; « oui » : le doute).
@@ -368,4 +374,104 @@ test("doute_vfq_lumio_decide", async () => {
   assert.deepEqual([lus.get("movie/tt911").vf, lus.get("movie/tt911").vfqPossible, lus.get("movie/tt911").vffLe], [true, true, "2026-11-17"]);
   assert.deepEqual([lus.get("movie/tt912").vf, lus.get("movie/tt912").vfqPossible], [false, undefined]);
   assert.deepEqual([lus.get("movie/tt914").vf, lus.get("movie/tt914").vfqPossible], [true, true], "rien chez Torrentio, Lumio dit VF : le doute");
+});
+
+// La tournée de nuit des films « VFQ possible » de « Bientôt dispo » : Lumio relu même avec un avis « VF » gardé (sans
+// VFF prouvée), dans son plafond à part (VFQ_PLAFOND) ; seuls ceux-là. Resident Evil, le 11 novembre 2026.
+test("tournee_vfq_relit_lumio_pour_trouver_la_vff", async () => {
+  let vff = false;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("https://lumio.test/p/stream/")) {
+      appels.push(u);
+      const nom = vff ? "Film.2026.MULTi.TRUEFRENCH.2160p.WEB-DL.mkv" : "Film.2026.MULTi.2160p.WEB.mkv";
+      return Response.json({ streams: [{ name: "[AD⚡️] Lumio", description: `4K • WEB-DL | 🇫🇷 🇨🇦 ✓ | 🔎 C411 | 🗂️ ${nom}`, url: "https://lumio.test/play/x" }] });
+    }
+    return new Response("{}");
+  };
+  const rangee = { metas: [
+    { id: "tt951", description: "📅 VFQ possible · VFF vers le 16 janv.\nRésumé" },
+    { id: "tt952", description: "📅 Dispo le 20 nov.\nRésumé" },
+    { id: "tmdb:9", description: "📅 VFQ possible\nRésumé" } ] };
+  const lus = [];
+  const lire = async (p) => { lus.push(p); return rangee; };
+  const e = { ...env, LUMIO_URL: "https://lumio.test/p/manifest.json", VFQ_PLAFOND: "5" };
+  const premier = await tourneeVfq(e, lire);
+  assert.deepEqual(premier, { vus: 1, relus: 1, vff: [] });
+  assert.deepEqual(lus, ["/catalog/movie/accueil-vod-bientot.json"], "moins de 20 : une page");
+  // Le lendemain, la VFF est sortie : l'avis « VF » gardé 7 jours est relu quand même.
+  vff = true;
+  assert.deepEqual(await tourneeVfq(e, lire), { vus: 1, relus: 1, vff: ["movie/tt951"] });
+  assert.equal(appels.length, 2);
+  assert.ok(!appels.some((u) => u.startsWith("https://sf.test")), "pas StreamFusion");
+  // Une VFF prouvée gardée : pas relue.
+  await tourneeVfq(e, lire);
+  assert.equal(appels.length, 2);
+});
+
+// Le jour où la VFF prouvée arrive (vffDepuis) : vu seulement après un avis qui disait autre chose ; un premier avis
+// déjà en VFF ne sait pas depuis quand.
+test("vff_depuis_vue_seulement_au_changement", async () => {
+  let nom = "Film.2026.MULTi.1080p.WEB.mkv";
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes("/vf.json")) return Response.json({});
+    if (u.startsWith("https://lumio.test/p/stream/")) {
+      appels.push(u);
+      return Response.json({ streams: [{ name: "[AD⚡️] Lumio", description: `1080p • WEB-DL | 🇫🇷 ✓ | 🔎 C411 | 🗂️ ${nom}`, url: "https://lumio.test/play/x" }] });
+    }
+    return new Response("{}");
+  };
+  const e = { ...env, LUMIO_URL: "https://lumio.test/p/manifest.json", AFFICHES_URL: "https://affiches.test", VFQ_PLAFOND: "9" };
+  const jour = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
+  const rangee = { metas: [{ id: "tt961", description: "📅 VFQ possible\nRésumé" }, { id: "tt962", description: "📅 VFQ possible\nRésumé" }] };
+  // tt962 : déjà en VFF au premier avis.
+  const premier = await aHeure(LA_NUIT, () => tourneeVfq(e, async () => ({ metas: [rangee.metas[0]] })));
+  assert.deepEqual(premier.vff, []);
+  nom = "Film.2026.MULTi.TRUEFRENCH.1080p.WEB.mkv";
+  await tourneeVfq(e, async () => rangee);
+  const lus = await lireVfPhoto(e, ["movie/tt961", "movie/tt962"]);
+  assert.equal(lus.get("movie/tt961").vff, true);
+  assert.equal(lus.get("movie/tt961").vffDepuis, jour, "VF sans preuve, puis TRUEFRENCH : arrivée vue aujourd'hui");
+  assert.equal(lus.get("movie/tt962").vff, true);
+  assert.equal(lus.get("movie/tt962").vffDepuis, undefined, "premier avis : on ne sait pas depuis quand");
+  // Le premier jour vu (vffVu), lui, est toujours là : la date d'une VFF en avance dans l'Agenda d'AppTV.
+  assert.equal(lus.get("movie/tt962").vffVu, jour);
+  assert.equal(lus.get("movie/tt961").vffVu, jour);
+});
+
+// La VFF prouvée par les noms : deux équipes, ou une seule trouvée sur un tracker torrent. L'Odyssée, le 11 novembre
+// 2026 : un seul fichier « MULTI.VF2 » de CZHD, sur des sites de téléchargement direct seulement : pas une preuve.
+test("vff_prouvee_par_deux_equipes_ou_un_tracker", async () => {
+  const f = (desc) => ({ name: "[AD⚡️] Lumio", description: desc, url: "https://lumio.test/play/x" });
+  const odyssee = [
+    f("1080p • WEB-DL • 📶 2,9 Mb/s\n🇫🇷 🇨🇦 🇬🇧 ✓ • 💾 3,8 Go • 🔎 GenerationFree\n🎧 H264 • AAC 5.1 • CZHD\n🗂️ The.Odyssey.2026.WEB.1080p.MULTI.VF2.H264-CZHD.mkv"),
+    f("1080p • WEB-DL • 📶 2,9 Mb/s\n🌍 🇫🇷 🇨🇦 • 💾 3,8 Go • 🔎 Free-Telecharger • 🔗 turbobit · 1fichier\n🎧 H264 • CZHD\n🗂️ The.Odyssey.2026.WEB.1080p.MULTI.VF2.H264-CZHD.mkv"),
+    f("1080p • WEB-DL\n🇫🇷 🇨🇦 🇬🇧 ✓ • 🔎 V3X\n🗂️ The.Odyssey.2026.MULTi.1080p.WEB.H265-SUPERFLU.mkv"),
+  ];
+  const tableau = {
+    tt971: odyssee,
+    // la même équipe sur un tracker torrent : prouvée
+    tt972: [f("4K • WEB-DL\n🌍 🇫🇷 🇬🇧 • 💾 17,6 Go • 🔎 C411\n🎧 HEVC • AC3 5.1 • Slay3R\n🗂️ Resident.Evil.2026.MULTi.TRUEFRENCH.2160p.HDR.DV.WEB-DL.H265-Slay3R.mkv")],
+    // deux équipes, en téléchargement direct seulement : prouvée
+    tt973: [f("🇫🇷 ✓ • 🔎 Wawacity • 🔗 rapidgator\n🗂️ Film.2026.MULTi.VFF.1080p.WEB-AAA.mkv"), f("🇫🇷 ✓ • 🔎 Tirexo • 🔗 1fichier\n🗂️ Film.2026.MULTi.VF2.1080p.WEB-BBB.mkv")],
+    // L'Odyssée, le 12 novembre 2026 : un WEBRip d'une autre équipe sur C411, avec le VF2 de CZHD : une copie refaite,
+    // pas une preuve
+    tt974: [...odyssee, f("1080p • WEBRip\n🇫🇷 🇬🇧 ✓ • 💾 3 Go • 🔎 C411\n🎧 AAC 2.0 • FS\n🗂️ The.Odyssey.2026.MULTI.VFF.1080p.WEBRIP.AAC.2.0.x264-FS.mkv")],
+  };
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes("/vf.json")) return Response.json({});
+    const m = /lumio\.test\/p\/stream\/movie\/(tt\d+)\.json/.exec(u);
+    if (m) return Response.json({ streams: tableau[m[1]] || [] });
+    return new Response("{}");
+  };
+  const e = { ...env, LUMIO_URL: "https://lumio.test/p/manifest.json", AFFICHES_URL: "https://affiches.test" };
+  const lus = await lireVfPhoto(e, ["movie/tt971", "movie/tt972", "movie/tt973", "movie/tt974"]);
+  assert.equal(lus.get("movie/tt971").vf, true);
+  assert.equal(lus.get("movie/tt971").vff, undefined, "L'Odyssée : un seul fichier CZHD, hors tracker");
+  assert.equal(lus.get("movie/tt972").vff, true, "Slay3R sur C411");
+  assert.equal(lus.get("movie/tt973").vff, true, "deux équipes");
+  assert.equal(lus.get("movie/tt974").vf, true);
+  assert.equal(lus.get("movie/tt974").vff, undefined, "un WEBRip ne prouve pas la VFF");
 });

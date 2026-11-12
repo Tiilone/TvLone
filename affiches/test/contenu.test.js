@@ -573,3 +573,29 @@ test("contenu_vfq_possible", () => {
   assert.equal(netflix.moitie, undefined);
   assert.notEqual(netflix.statut, "VFQ POSSIBLE");
 });
+
+// La VFF prouvée par les noms avant sa date française : « VFF EN AVANCE », sans date dessous (Resident Evil, le
+// 11 novembre 2026 : en salle en France le 16 septembre, VFF prévue vers le 16 janvier). Les 7 jours qui suivent son
+// arrivée (vffDepuis) : « NOUVEAU EN VFF ».
+test("contenu_vff_en_avance", () => {
+  const today = "2026-11-11";
+  const sorties = (...l) => l.map(([pays, type, d]) => ({ iso_3166_1: pays, release_dates: [{ type, release_date: `${d}T00:00:00.000Z` }] }));
+  const faits = { type: "movie", title: "Resident Evil", firstAir: null, poster: "/p.jpg", textlessPoster: "/t.jpg", logo: "/l.png", genreIds: [], originalLanguage: "en", year: "2026",
+    releases: sorties(["FR", 3, "2026-09-16"], ["US", 3, "2026-09-18"], ["US", 4, "2026-11-03"]) };
+  const q = { uhd: true, extra: "DV", vf: true, vff: true, sources: 8, langue: "multi" };
+  const c = posterContent(faits, { quality: q }, "poster", undefined, today);
+  assert.equal(c.statut, "VFF EN AVANCE");
+  assert.equal(c.statut2, undefined);
+  assert.equal(c.gris, false);
+  // Arrivée il y a moins de 7 jours : « NOUVEAU EN VFF », jusqu'au 7e jour, puis « VFF EN AVANCE ».
+  assert.equal(posterContent(faits, { quality: { ...q, vffDepuis: "2026-11-11" } }, "poster", undefined, today).statut, "NOUVEAU EN VFF");
+  assert.equal(posterContent(faits, { quality: { ...q, vffDepuis: "2026-11-05" } }, "poster", undefined, today).statut, "NOUVEAU EN VFF");
+  assert.equal(posterContent(faits, { quality: { ...q, vffDepuis: "2026-11-04" } }, "poster", undefined, today).statut, "VFF EN AVANCE");
+  // Après la date française aussi, pendant 7 jours (une VFF arrivée après une sortie en VO seulement).
+  assert.equal(posterContent(faits, { quality: { ...q, vffDepuis: "2027-01-30" } }, "poster", undefined, "2027-02-01").statut, "NOUVEAU EN VFF");
+  // Sans preuve (vff), date française passée, film français ou plateforme qui le double : rien.
+  assert.notEqual(posterContent(faits, { quality: { ...q, vff: false } }, "poster", undefined, today).statut, "VFF EN AVANCE");
+  assert.notEqual(posterContent(faits, { quality: q }, "poster", undefined, "2027-02-01").statut, "VFF EN AVANCE");
+  assert.notEqual(posterContent({ ...faits, originalLanguage: "fr" }, { quality: q }, "poster", undefined, today).statut, "VFF EN AVANCE");
+  assert.notEqual(posterContent({ ...faits, abonnementVf: true }, { quality: q }, "poster", undefined, today).statut, "VFF EN AVANCE");
+});

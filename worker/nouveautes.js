@@ -10,6 +10,17 @@ import { LOGO_V } from "./reglages.js";
 
 export const NOUVEAUTES = [
   {
+    date: "2026-11-11",
+    titre: "Les films déjà en VFF avant leur date",
+    points: [
+      "Quand la VF de France d'un film sort, son affiche dit « NOUVEAU EN VFF » pendant une semaine, puis « VFF EN AVANCE » si elle est arrivée avant sa date française prévue. La fiche dit « Dispo en VFF depuis le … ».",
+      "Le film passe en tête de « Dispo depuis peu » le jour où sa VFF arrive, même s'il était sorti avant en VO.",
+      "Les films « VFQ possible » sont revérifiés chaque nuit : dès qu'une VFF sort, ils passent en couleur et quittent « Bientôt dispo ».",
+      "Recherche : les lettres inversées sont mieux comprises (« beware bounia » trouve Beware Boiúna).",
+      "Séries dont TMDB coupe chaque épisode en deux parties (Koh-Lanta) : les épisodes sont numérotés comme chez les addons de sources, les deux parties n'en font plus qu'un, et les sources se trouvent de nouveau.",
+    ],
+  },
+  {
     date: "2026-11-07",
     titre: "Exporter tout ce que tu as regardé",
     points: [
