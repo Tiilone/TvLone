@@ -1,7 +1,7 @@
 import { test, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import worker, { oublierInfos, oublierBandesAnnonces, oublierAvis, ageFinal, oublierAgesCnc, oublierFillers, creditsScene } from "../worker/index.js";
+import worker, { oublierInfos, oublierBandesAnnonces, oublierAvis, ageFinal, oublierAgesCnc, oublierFillers, creditsScene, afficheDeFrance } from "../worker/index.js";
 import { fakeD1 } from "./support/d1.mjs";
 import { resetFails } from "../worker/hote.js";
 
@@ -1547,6 +1547,27 @@ test("dispo_depuis_peu_estimation_passee_et_vf_confirmee", async () => {
   assert.deepEqual(await lancer(false), []);
 });
 
+// « Sorties en VOSTFR » (rangée à cocher) : l'inverse de « Dispo depuis peu ». Un film déjà chez soi dont les sources
+// n'ont pas la VF y est (et pas dans « Dispo depuis peu ») ; le même film en VF n'y est pas.
+test("sorties_en_vostfr_seulement_sans_vf", async () => {
+  const jour = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+  const lancer = async (rangee, vf) => {
+    oublierInfos(); store.clear();
+    globalThis.fetch = async (url) => {
+      const u = String(url);
+      calls.push(u);
+      if (u.includes("/vf.json")) return sourcesDe({ tt905: { vf, sources: 19 } })(u);
+      if (u.includes("/discover/movie")) return Response.json({ results: [{ id: 5, title: "Weapons", original_language: "en", release_date: jour(-40), popularity: 9 }], page: 1, total_pages: 1 });
+      if (/\/movie\/5\?/.test(u)) return Response.json(filmVod(5, "en", [["US", 3, jour(-40)], ["US", 4, jour(-5)]]));
+      return Response.json({ results: [] });
+    };
+    return (await (await worker.fetch(new Request(`https://x/${seg({ r: [rangee] })}/catalog/movie/${rangee}.json`), { ...env, LIENS: fakeD1() }, ctx)).json()).metas.map((m) => m.name);
+  };
+  assert.deepEqual(await lancer("accueil-vostfr", false), ["Weapons"]);
+  assert.deepEqual(await lancer("accueil-vod-semaine", false), []);
+  assert.deepEqual(await lancer("accueil-vostfr", true), []);
+});
+
 // Film américain sur une plateforme d'abonnement française qui le double, sans sortie numérique aux États-Unis (The
 // Mongoose : en salle là-bas, sur Prime Video ici le 4 novembre) : sa sortie numérique française est son jour d'arrivée
 // chez soi, il est « Dispo depuis peu ». Sans la plateforme, la date française ne compte pas.
@@ -1955,4 +1976,16 @@ test("tendances_de_la_photo_disent_vfq_possible_comme_la_fiche", async () => {
   const [hope] = (await (await get("/catalog/movie/accueil-top10.json")).json()).metas;
   assert.equal(hope.name, "Hope");
   assert.match(hope.description, /^📅 VFQ possible · VFF le/);
+});
+
+test("affiche du Québec (TMDB faute d'affiche de France) : celle de France, sinon l'anglaise, sinon sans texte", () => {
+  const ca = { file_path: "/ca.jpg", iso_639_1: "fr", iso_3166_1: "CA" };
+  const en = { file_path: "/en.jpg", iso_639_1: "en", iso_3166_1: "US" };
+  const nul = { file_path: "/nul.jpg", iso_639_1: null };
+  const fr = { file_path: "/fr.jpg", iso_639_1: "fr", iso_3166_1: "FR" };
+  assert.equal(afficheDeFrance([ca, nul, en, fr], "/ca.jpg"), "/fr.jpg");
+  assert.equal(afficheDeFrance([ca, nul, en], "/ca.jpg"), "/en.jpg");
+  assert.equal(afficheDeFrance([ca, nul], "/ca.jpg"), "/nul.jpg");
+  assert.equal(afficheDeFrance([ca], "/ca.jpg"), null);
+  assert.equal(afficheDeFrance([fr, ca], "/fr.jpg"), null);
 });
