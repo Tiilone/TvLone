@@ -62,7 +62,7 @@ import { routeJeu } from "./jeu.js";
 import { routeEtat } from "./etat.js";
 import { statique } from "./statique.js";
 import { smartSearch, prepareWords, isExact, norm, capQuery, genreQuery, filmography, sansObscurs } from "./search.js";
-import { imdbRating } from "./ratings.js";
+import { imdbRating, notesImdb } from "./ratings.js";
 import { ROWS as FAC_ROWS, facultativeCatalogs, laureats, SAGA_IDS, SAGA_CATALOGS, sagaCatalog, inReleaseOrder } from "./facultatives.js";
 import { isCopy, addonId, hostRoute, hasAlerts, pendingUpdate, updateInfo, updateCard, same, UPDATE_CATALOG, SOURCE_HOST } from "./hote.js";
 import { SEANCE_ID, carteSeance, rechercheSeance, routeSeance } from "./seance.js";
@@ -77,7 +77,7 @@ import { routeCpu } from "./cpu.js";
 import { routeReserve, nettoyerReserve } from "./reserve.js";
 import { looksDescriptive, aiTitles, aiMiss, resolveTitles, aiRecap, aiProfile, aiProfiles, aiRenewal, aiEnv, AI_WAIT_MS } from "./ai.js";
 
-const VERSION = "5.65.1";
+const VERSION = "5.65.6";
 // Format des réponses gardées dans le cache Cloudflare (pages de rangées, fiches) : à augmenter seulement quand
 // ce qu'elles contiennent change (champ ajouté, règle d'affichage…). Avec VERSION dans les clés, chaque mise à jour
 // vidait tous les caches d'un coup : pic d'appels TMDB et Gemini. Les réponses de Gemini ont leurs propres clés (ai.js).
@@ -1114,15 +1114,23 @@ async function avisDuJour(env, cles, origine = "affiches", opts = {}) {
   // toutes les clés lues en même temps, puis traitées dans l'ordre (même résultat, sans 18 attentes à la suite)
   const enCache = await Promise.all(cles.map((cle) => caches.default.match(avisCache(cle))
     .then((hit) => (hit ? hit.json().catch(() => null) : null)).catch(() => null)));
+  // Une copie d'ici « VF sans VFF prouvée » (gardée 7 jours) : vérifiée dans la mémoire commune, où la tournée a pu
+  // écrire la VFF depuis un autre centre de données (L'Odyssée, le 14 novembre 2026 : VFF en base depuis la veille
+  // à 19 h, fiche encore « VFQ possible », l'avis gardé près du serveur Oracle). Une VFF ou un « non » : pris tel quel.
+  const aVerifier = new Map();
   cles.forEach((cle, i) => {
     const d = enCache[i];
-    if (bon(d)) avis.set(cle, sansFormat(d.avis)); else { manque.push(cle); if (d) vieux.set(cle, d); }
+    if (bon(d) && (d.avis.vff || !d.avis.vf)) avis.set(cle, sansFormat(d.avis));
+    else { manque.push(cle); if (d) vieux.set(cle, d); if (bon(d)) aVerifier.set(cle, d); }
   });
   // La mémoire commune : un titre déjà demandé ailleurs (un autre centre de données) n'est pas redemandé.
   for (const [cle, d] of await lireAvisGardes(env, manque)) {
+    const ici = aVerifier.get(cle);
+    if (ici && !(d.t > ici.t && bon(d))) continue;
     vieux.set(cle, d);
     if (bon(d)) { avis.set(cle, sansFormat(d.avis)); await garderAvisIci(cle, d); }
   }
+  for (const [cle, d] of aVerifier) if (!avis.has(cle)) avis.set(cle, sansFormat(d.avis));
   const aLire = manque.filter((c) => !avis.has(c)).slice(0, SF_MAX);
   // Lumio d'abord, dans son plafond ; StreamFusion pour le reste, dans le sien. SF_MAX appels au plus en tout (la
   // limite de 50 appels sortants par requête).
@@ -1251,9 +1259,9 @@ const RESERVE_PHOTO_JUSQUA = 7;
 const reservePhotoTenue = () => Number(HEURE_PARIS.format(new Date(Date.now()))) < RESERVE_PHOTO_JUSQUA;
 // sansvf : les films examinés chaque nuit pour la liste « SANS VF » (avisSansVf), une ou deux demandes par film, à part
 // des plafonds des rangées et des affiches.
-// vfq : la tournée de nuit des films « VFQ possible » (tourneeVfq), à part elle aussi.
+// vfq : les tournées des films « VFQ possible » (tourneeVfq, la nuit et toutes les 3 h le jour), à part elles aussi.
 const PLAFONDS = { sf: ["SF_PLAFOND", 300, "", 0.4], lumio: ["LUMIO_PLAFOND", 50, "lumio:", 0.6], sansvf: ["SANSVF_PLAFOND", 15, "sansvf:", 0],
-  vfq: ["VFQ_PLAFOND", 20, "vfq:", 0] };
+  vfq: ["VFQ_PLAFOND", 40, "vfq:", 0] };
 const plafondsAtteints = new Set();
 const plafondCache = (cle) => new Request(`https://avis.cache/plafond/${cle}`);
 let budgetPret = null;
@@ -1330,7 +1338,7 @@ export async function lireVfPhoto(env, cles) {
 }
 
 /**
- * La tournée de nuit des films « VFQ possible » de « Bientôt dispo » : Lumio relu pour chacun (VFQ_PLAFOND, 20 par
+ * La tournée de nuit des films « VFQ possible » de « Bientôt dispo » : Lumio relu pour chacun (VFQ_PLAFOND, 40 par
  * nuit, à part des autres plafonds), même avec un avis « VF » gardé, pour trouver une VFF prouvée par les noms
  * (TRUEFRENCH, VFF, VF2) dès qu'elle sort. Sans elle, un film que personne n'ouvre restait « VFQ possible » jusqu'à la
  * date française (Resident Evil, le 11 novembre 2026 : en VFF bien avant le 16 janvier). L'avis trouvé est gardé comme
@@ -1350,7 +1358,36 @@ export async function tourneeVfq(env, lire) {
   const uniques = [...new Set(cles)].slice(0, SF_MAX);
   if (!uniques.length) return { vus: 0, relus: 0, vff: [] };
   const { avis } = await avisDuJour(env, uniques, "vfq", { budget: "vfq", relire: true });
-  return { vus: uniques.length, relus: avis.size, vff: uniques.filter((c) => avis.get(c) && avis.get(c).vff) };
+  const vff = uniques.filter((c) => avis.get(c) && avis.get(c).vff);
+  await noterNouvellesVff(env, vff).catch((e) => console.warn(`nouvelles VFF : ${e && e.message}`));
+  return { vus: uniques.length, relus: avis.size, vff };
+}
+
+/**
+ * Les films passés en VFF à une tournée (« VFQ possible » jusque-là) : notés dans une petite table, que le serveur des
+ * affiches lit toutes les 15 minutes (/vff/nouvelles.json) pour les redessiner tout de suite, sans attendre la nuit.
+ * Gardés 3 jours ; un film n'y est noté qu'une fois.
+ */
+const NOUVELLES_VFF_MS = 3 * 86400000;
+let nouvellesPret = null;
+const preparerNouvelles = (env) => (nouvellesPret = nouvellesPret || env.LIENS.prepare(
+  "CREATE TABLE IF NOT EXISTS vff_nouvelles (cle TEXT PRIMARY KEY, t INTEGER NOT NULL)").run()
+  .catch((e) => { nouvellesPret = null; throw e; }));
+async function noterNouvellesVff(env, cles) {
+  if (!env.LIENS || !cles.length) return;
+  await preparerNouvelles(env);
+  const now = Date.now();
+  await env.LIENS.batch([
+    env.LIENS.prepare("DELETE FROM vff_nouvelles WHERE t < ?").bind(now - NOUVELLES_VFF_MS),
+    ...cles.map((c) => env.LIENS.prepare("INSERT OR IGNORE INTO vff_nouvelles (cle, t) VALUES (?, ?)").bind(c, now)),
+  ]);
+}
+/** /vff/nouvelles.json (clé du relais) : { nouvelles: [{ cle: "movie/tt…", t }] }, les 3 derniers jours. */
+export async function nouvellesVff(env) {
+  if (!env.LIENS) return [];
+  await preparerNouvelles(env);
+  const { results } = await env.LIENS.prepare("SELECT cle, t FROM vff_nouvelles WHERE t >= ?").bind(Date.now() - NOUVELLES_VFF_MS).all();
+  return (results || []).map((r) => ({ cle: r.cle, t: r.t }));
 }
 
 /** Pour les tests : oublie les plafonds atteints et la table des avis déjà préparée. */
@@ -3206,7 +3243,7 @@ function json(data, maxAge) {
   });
 }
 
-const RESERVED = new Set(["manifest.json", "catalog", "configure", "collections.json", "accueil.json", "guide", "tv", "trailer", "lien", "meta", "logo.png", "debug", "affiche", "prefetch", "dossier", "hote", "statique", "copie", "lien-fixe", "tendances", "sf", "avis", "rangee", "sans-vf", "saison.json", "seance", "diagnostic", "nouveautes", "cpu", "reserve", "compte-nuvio"]);
+const RESERVED = new Set(["manifest.json", "catalog", "configure", "collections.json", "accueil.json", "guide", "tv", "trailer", "lien", "meta", "logo.png", "debug", "affiche", "prefetch", "dossier", "hote", "statique", "copie", "lien-fixe", "tendances", "sf", "avis", "rangee", "sans-vf", "saison.json", "seance", "diagnostic", "nouveautes", "cpu", "reserve", "compte-nuvio", "vfq", "vff"]);
 
 async function loadCollections() {
   const res = await fetch(`${ASSETS}/collections/collections.json`, { cf: { cacheTtl: 600, cacheEverything: true } });
@@ -3353,20 +3390,32 @@ export default {
   },
   // Tâche planifiée de 4 h UTC (wrangler.toml) : la photo du jour des tendances.
   async scheduled(event, env, ctx) {
-    if (event.cron === CRON_SURVEILLANCE) { ctx.waitUntil(surveiller(env).catch((e) => console.warn(`surveillance : ${e && e.message}`))); return; }
+    if (event.cron === CRON_SURVEILLANCE) {
+      ctx.waitUntil(surveiller(env).catch((e) => console.warn(`surveillance : ${e && e.message}`)));
+      // La tournée des films « VFQ possible » aussi en journée, toutes les 3 heures (TOURNEES_JOUR_UTC) : une VFF sortie
+      // l'après-midi (L'Odyssée, le 13 novembre 2026, vers 18 h) n'attend plus la nuit.
+      const t = new Date(event.scheduledTime || Date.now());
+      if (t.getUTCMinutes() < 5 && TOURNEES_JOUR_UTC.includes(t.getUTCHours())) lancerTourneeVfq(env, ctx);
+      return;
+    }
     // Une demande à soi-même par photo (liaison SELF : chacune son budget de 50 appels sortants), sinon ici.
     ctx.waitUntil(env.SELF
       ? Promise.all(["movie", "series"].map((k) => env.SELF.fetch(`https://self/tendances/${k}.json`).catch(() => null)))
       : prendrePhotos(env, event.scheduledTime, classerTendances));
     ctx.waitUntil(nettoyerReserve(env, event.scheduledTime));
     ctx.waitUntil(prendreTops(env, event.scheduledTime).catch((e) => console.warn(`tops : ${e && e.message}`)));
-    // Les films « VFQ possible » : une VFF sortie depuis (tourneeVfq). Par SELF : son propre budget d'appels.
-    if (env.SELF) {
-      ctx.waitUntil(triCle(env).then((cle) => env.SELF.fetch(new Request("https://self/vfq/tournee", { method: "POST", headers: { "x-tri": cle } })))
-        .catch((e) => console.warn(`tournée VFQ : ${e && e.message}`)));
-    }
+    lancerTourneeVfq(env, ctx);
   },
 };
+
+/** Heures (UTC) des tournées « VFQ possible » de la journée, en plus de celle de 4 h : de 7 h à 22 h à Paris. */
+const TOURNEES_JOUR_UTC = [6, 9, 12, 15, 18, 21];
+/** Les films « VFQ possible » : une VFF sortie depuis (tourneeVfq). Par SELF : son propre budget d'appels. */
+function lancerTourneeVfq(env, ctx) {
+  if (!env.SELF) return;
+  ctx.waitUntil(triCle(env).then((cle) => env.SELF.fetch(new Request("https://self/vfq/tournee", { method: "POST", headers: { "x-tri": cle } })))
+    .catch((e) => console.warn(`tournée VFQ : ${e && e.message}`)));
+}
 
 // Le site et l'addon (sans les en-têtes de sécurité, ajoutés ci-dessus).
 const app = {
@@ -3378,6 +3427,8 @@ const app = {
     let path = url.pathname.replace(/\/+$/, "");
     // Galerie des styles d'affiches de la régie (salle 2) : jamais derrière une config (voir galerie.js).
     if (path.startsWith("/galerie/")) return galerieRoute(request, env, url, path);
+    // Notes IMDb de plusieurs titres (Explorer de Kalyo) : le fichier embarqué, aucun appel réseau ; avec ou sans config.
+    if (path === "/notes.json" || path.endsWith("/notes.json")) return json(notesImdb(url.searchParams.get("ids")), 21600);
     // Compteur de calcul du service d'affiches (offre Hobby de Vercel : 4 h de CPU par mois, voir cpu.js).
     if (path === "/cpu") return routeCpu(request, env, url);
     // Réserve des affiches déjà dessinées, lue par le service d'affiches avant de dessiner (voir reserve.js).
@@ -3619,6 +3670,11 @@ const app = {
         return res.ok ? res.json() : null;
       };
       return json(await tourneeVfq(env, lire), 0);
+    }
+    // Les films passés en VFF à une tournée, pour le serveur des affiches (avec la clé du relais).
+    if (path === "/vff/nouvelles.json") {
+      if (!env.RELAIS_KEY || !same(await sha256(request.headers.get("X-Relais-Cle") || ""), await sha256(env.RELAIS_KEY))) return json({ error: "refusé" }, 0);
+      return json({ nouvelles: await nouvellesVff(env) }, 0);
     }
     if (path === "/tendances/tri" && request.method === "POST") {
       if (!same(request.headers.get("x-tri") || "", await triCle(env))) return json({ error: "interdit" }, 0);
